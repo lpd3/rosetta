@@ -102,11 +102,9 @@ the false positives produced are disjoint sets of numbers."
   arguments are the number-of-runs (defaulting to 1) and
   bases, which should either be nil or a list of bases, 
   defaulting to '(2)'. One base is used for each run until
-  the list is exhausted."
-  (assert (and (integerp n)
-	       (not (minusp n)))
-	  ()
-	  ("MILLER-RABIN: n must be a non-negative integer, not ~A ~S" (type-of n) n))
+  the list is exhausted. Sssumes the test is being run
+as part of a Baillie-PSW test. The n is not 
+error-checked."
   (assert (and (integerp runs)
 	       (plusp runs))
 	  ()
@@ -174,7 +172,63 @@ the false positives produced are disjoint sets of numbers."
 	    base (mod (* base base) m))))))
 
 (defun lucas (n)
-  (uiop:not-implemented-error)
-  )     
+  "Lucas primality test, a probalistic prime test based
+on the Lucas series.
+It is guaranteed to never produce a 
+false negative. On occasion,  it produces a false
+positive. Assumes the test 
+is being run as part of a Baillie-PSW test. Does no 
+input error checking."
+  (let ((int-sqrt (isqrt n)))
+    (if (= (square int-sqrt) n)
+	nil
+	(let* ((d (find-d n))
+	       (p 1)
+	       (q (/ (- 1 d) 4)))
+	  ))))
+
+(defun find-d (n)
+  "Finds and returns the first integer
+D in the series 5, -7, 9, 
+-11, 13, -15, ... for which
+the Jacobi symbol D/n = -1."
+  (loop for d = 5 then (* -1 (+ 2 m))
+	when (= (jacobi d n) -1)
+	do
+	  (return-from find-d d)))
+
+(defun jacobi (n k)
+  "Given two integers n and k, return the 
+jacobi symbol n/k."
+  (assert (integerp n)
+	  ()
+	  "JACOBI: first arg must be an integer, not ~A ~S" (type-of n) n)
+  (assert (and
+	   (integerp k)
+	   (oddp k)
+	   (plusp k))
+	  ()
+	  "JACOBI: second arg must be a positive, odd integer, not ~A ~S" (type-of k) k)
+  (do ((n (mod n k))
+       (t 1))
+      ((= n 0) (if (= k 1)
+		   t
+		   0))
+    (do ()
+	((= (mod n 2) 1))
+      (setv n (/ n 2))
+      (let ((r (mod k 8)))
+	(when (member r '(3 5))
+	 (setv t (- t)))
+	(rotatef n k)
+	(when (and
+	       (= (mod n 4) 3)
+	       (= (mod k 4) 3))
+	  (setf t (- t)))
+	(setf n (mod n k))))))
+
+
+
+
  
      
