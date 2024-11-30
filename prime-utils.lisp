@@ -46,7 +46,7 @@
   "Vector that holds the prime numbers less than *small-prime-limit*")
 
 (defparameter *largest-small-prime*
-  (serapeum:last-elt *small-primes*)
+  (last-elt *small-primes*)
   "The largest prime number in *small-primes*, also the
   largest prime number less than or equal to *small-prime-limit*")
 
@@ -89,7 +89,7 @@
   "Performs a baillie-psw test, which is guaranteed to be accurate for numbers that are no larger than the *baillie-psw-limit* An open question in mathematics is if there is any composite number
 that passes this test. While both subtests produce false positives, those have been different numbers. It has been postulated that
 the false positives produced are disjoint sets of numbers."
-  (and (miller-rabin n) (lucas n)))
+  (and (miller-rabin n) (lucas-probable n)))
 	  
 (defun miller-rabin (n &optional (number-of-runs 1) (bases: '(2)))
   "Miller-Rabin Probable Prime test. A probabilistic test, 
@@ -171,21 +171,52 @@ error-checked."
       (setf exponent (ash exponent -1)
 	    base (mod (* base base) m))))))
 
-(defun lucas (n)
-  "Lucas primality test, a probalistic prime test based
-on the Lucas series.
+(defun lucas-probable (n)
+  "Lucas pobable prime test, a probalistic prime test based
+on a Lucas series.
 It is guaranteed to never produce a 
 false negative. On occasion,  it produces a false
 positive. Assumes the test 
 is being run as part of a Baillie-PSW test. Does no 
 input error checking."
+  ;; We already know n is
+  ;; 1. odd
+  ;; 2. greater than 2
+  ;; 3. not divisible by
+  ;; small primes.
+  ;; As a final preliminary
+  ;; test, we need to make
+  ;; sure that n is not
+  ;; a perfect square
   (let ((int-sqrt (isqrt n)))
-    (if (= (square int-sqrt) n)
-	nil
-	(let* ((d (find-d n))
-	       (p 1)
-	       (q (/ (- 1 d) 4)))
-	  ))))
+    (when (= (* int-sqrt int-sqrt) n)
+      (return nil)))
+  ;; ok. The main test.
+  ;; First, find suitable
+  ;; D and Q parameters.
+  ;; Set the P parameter to
+  ;; 1. Get the binary
+  ;; expansion of n+1 as
+  ;; a big-endian adjustable
+  ;; vector
+  (let* ((d (find-d n))
+	 (q (/ (- 1 d) 4))
+	 (p 1)
+	 (expansion (binary-expansion (+ n 1))))
+    ;; Calculate U[k], V[k]
+    ;; and Q^k as determined
+    ;; by expansion
+    (do* ((bit #1=(vector-pop expansion) #1#)
+	  (k 1 (next-k k bit))
+	  (u 1)
+	  (v p))
+	 ((emptyp expansion)
+	  (/= (mod u n) 0))
+      (setv u (u-square u v n))
+      (setv v (v-square u v d n))
+      (when (= bit 1)
+	(setv u (u-inc u v p n))
+	(setv v (v-inc u v d p n))))))
 
 (defun find-d (n)
   "Finds and returns the first integer
@@ -226,6 +257,91 @@ jacobi symbol n/k."
 	       (= (mod k 4) 3))
 	  (setf t (- t)))
 	(setf n (mod n k))))))
+
+(defun binary-expansion (n)
+  "Given a non-negative 
+decimal integer n, return
+an adjustable vector containing
+the big-endian bits of the 
+binary equivalent of n"
+  (assert (and (integerp n)
+	       (not (minusp n)))
+	  ()
+	  "BINARY-EXPANSION: arg must be a non-negative integer, not ~A ~S"
+	   (type-of n) n)
+  (let ((result
+	 (make-array 100
+		     :element-type fixnum
+		     :adjustable t
+		     :fill-pointer 0)))
+    (cond
+      ((zerop n)
+       (push 0 result)
+       result)
+      (t
+       (do ((remainder n (ash n -1)))
+	   ((zerop remainder) result)
+	 (if (oddp remainder)
+	     (push 1 result)
+	     (push 0 result)))))))
+
+(defun u-square (u v n)
+  "Helper function for lucas-probable. With args U[k], 
+V[k] and n, returns 
+U[2k] mod n."
+  (mod (* u v) n))
+
+(defun v-square (u v d n)
+  "Helper function for lucas-probable. With args U[k],
+V[k], D and n, returns 
+V[2k] mod n."
+  (mod
+   (/
+    (+
+     (modular-exponentiation
+      v 2 n)
+     (*
+      d
+      (modular-exponentiation u 2 n)))
+    2)
+   n))
+
+(defun u-inc (u v p n)
+  "Helper function for lucas-probable.
+Given U[2k], V[2k], P and n,
+returns
+U[2k+1] mod n"
+  (let ((dividend
+	 (mod
+	  (+
+	   (* p u)
+	   v)
+	  n)))
+    (if (oddp dividend)
+	(mod
+	 (/
+	  (+ dividend n)
+	  2)
+	 n)
+	(/ dividend 2))))
+
+(defun v-inc (u v d p n)
+  "Helper function for lukas-probable.
+Given U[2k], V[2k], D, P and n, returns
+V[2k+1]"
+  (let ((dividend
+	 (mod
+	  (+
+	   (* d u)
+	   (* p v))
+	  n)))
+    (if (oddp dividend)
+	(mod
+	 (/
+          (+ dividend n)
+	  2)
+	 n)
+	(/ dividend 2))))
 
 
 
