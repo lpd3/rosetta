@@ -8,7 +8,8 @@
          :series
          :cl-ppcre
          :repl-utilities
-         :computable-reals)))
+         :computable-reals
+	 :fiveam)))
   (dolist (dep dependencies)
     (when (not (find-package dep))
       (quicklisp:quickload dep))))
@@ -24,11 +25,13 @@
   All rights reserved."
   :depends-on ("alexandria" "serapeum"
                "iterate" "series" "cl-ppcre"
-               "repl-utilities" "computable-reals")
+               "repl-utilities" "computable-reals" "fiveam")
   :serial t
   :components ((:file "package")
                (:file "utilities")
-               (:file "rc-001")
+               (:file "prime-utils")
+	       (:file "prime-test")
+	       (:file "rc-001")
                (:file "rc-002")
                (:file "rc-003")
                (:file "rc-004")
