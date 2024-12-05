@@ -2087,11 +2087,12 @@ ascending.
   (prime nil :type integer)
   (comp nil :type (or integer null)))
 
-(defmethod initialize-instance :after ((entry heap-entry))
+(defmethod initialize-instance :after ((instance heap-entry) &rest initargs)
   "When the composite member of the heap-entry 
    has not been supplied, populate the slot
    with the square of the prime slot value.
    Return the instance."
+  (declare (ignore initargs))
   (when (null (comp entry))
     (let ((prime (prime entry)))
       (setf (comp entry)

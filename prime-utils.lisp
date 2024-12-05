@@ -9,8 +9,8 @@
   "The largest prime in the *small-primes* array will be 
   the largest prime number less than this integer.")
 
-(defun init-small-primes (&optional (limit *small-prime-limit))
-  "Initializes the *primes-below-1000* parameter."
+(defun init-small-primes (&optional (limit *small-prime-limit*))
+  "Initializes the *small-primes* parameter."
   (let ((sieve (make-array (1+ limit) :element-type 'boolean :initial-element t)))
     (setf (aref sieve 0) nil
 	  (aref sieve 1) nil)
@@ -24,7 +24,9 @@
 	    ((> multiple 1000))
 	  (setf (aref sieve multiple) nil))))
     (let ((primes (make-array (1+ limit)
-			      :element-type 'fixnum))
+			      :element-type 'fixnum
+			      :adjustable t
+			      :fill-pointer 0))
 	  (prime-index 0))
       (dotimes (sieve-index (1+ limit))
 	(when (aref sieve sieve-index)
@@ -44,11 +46,6 @@
 (defparameter *small-primes*
   (init-small-primes)
   "Vector that holds the prime numbers less than *small-prime-limit*")
-
-(defparameter *largest-small-prime*
-  (last-elt *small-primes*)
-  "The largest prime number in *small-primes*, also the
-  largest prime number less than or equal to *small-prime-limit*")
 
 (defun square (x)
   "The square of x"
@@ -71,7 +68,7 @@
     (if (find n *small-primes*)
 	t
       nil))
-   ((<= n (square *largest-small-prime*))
+   ((<= n (square (last-elt *small-primes*)))
     (loop with search-limit = (isqrt n)
 	  for prime in *small-primes*
 	  while (<= prime search-limit)
@@ -91,7 +88,7 @@ that passes this test. While both subtests produce false positives, those have b
 the false positives produced are disjoint sets of numbers."
   (and (miller-rabin n) (lucas-probable n)))
 	  
-(defun miller-rabin (n &optional (number-of-runs 1) (bases: '(2)))
+(defun miller-rabin (n &optional (number-of-runs 1) (bases '(2)))
   "Miller-Rabin Probable Prime test. A probabilistic test, 
   it never returns a false negative. It produces false 
   positives in up to 1/4 of cases. When run alone, it is
@@ -108,7 +105,7 @@ error-checked."
   (assert (and (integerp runs)
 	       (plusp runs))
 	  ()
-	  ("MILLER-RABIN: 'runs' argument must be positive integer, not ~A ~S" (type-of n) n))
+	  "MILLER-RABIN: 'runs' argument must be positive integer, not ~A ~S" (type-of n) n)
   (assert (and (listp bases)
 	       (every #'(lambda (base)
 			  (and (integerp base)
@@ -116,7 +113,7 @@ error-checked."
 			       (< (1- n) base)))
 		      bases))
 	  ()
-	  "MILLER-RABIN: Arg `bases` must be a list that is either empty, or contains only integers such that each integer is greater than 1 and less than n-1. Your entry: ~A ~S" (type-of bases) bases)
+	  "MILLER-RABIN: Arg `base` must be a list that is either empty, or contains only integers such that each integer is greater than 1 and less than n-1. Your entry: ~A ~S" (type-of bases) bases)
   (let* ((num-twos-n-minus-one (num-twos (1- n)))
 	 (n-minus-one-no-twos (/ n (expt 2 num-twos-n-minus-one))))
     (dotimes (_ number-of-runs t)
@@ -137,6 +134,19 @@ error-checked."
 	(when (/= y 1)
 	  (return-from miller-rabin nil))))))
 
+(defun num-twos (n)
+  "Helper function for miller-rabin.
+   Given integer n, return
+   k such that 2^kd = n,
+   where d is an odd 
+   integer. Performs no 
+   error checking."
+  (if (zerop n)
+      0
+      (do ((k 0 (1+ k))
+	   (d n (/ d 2)))
+	  ((oddp d) k))))
+
 (defun modular-exponentiation (n e m)
   "Given n, and exponent, and a modulus, 
   return n^e mod m"
@@ -154,22 +164,22 @@ error-checked."
 	  ()
 	  "MODULAR-EXPONENTITATION: modulus must be a positive integer, not ~A ~S" (type-of m) m)
   (cond
-   ((and (zerop n) (zerop e))
-    (error "MODULAR-EXPONENTIATION: 0^0 is undefined"))
-   ((= m 1) 0)
-   ((zerop n) 0)
-   ((= n 1) 1)
-   ((zerop e) 1)
-   ((= e 1) n)
-   (t
-    (do ((base (mod n m))
-	 (result 1)
-	 (exponent e))
-	((zerop exponent) result)
-      (when (= (mod exponenent 2) 1)
-	(setf result (mod (* result base) m)))
-      (setf exponent (ash exponent -1)
-	    base (mod (* base base) m))))))
+    ((and (zerop n) (zerop e))
+     (error "MODULAR-EXPONENTIATION: 0^0 is undefined"))
+    ((= m 1) 0)
+    ((zerop n) 0)
+    ((= n 1) 1)
+    ((zerop e) 1)
+    ((= e 1) n)
+    (t
+     (do ((base (mod n m))
+	  (result 1)
+	  (exponent e))
+	 ((zerop exponent) result)
+       (when (= (mod exponenent 2) 1)
+	 (setf result (mod (* result base) m)))
+       (setf exponent (ash exponent -1)
+	     base (mod (* base base) m))))))
 
 (defun lucas-probable (n)
   "Lucas pobable prime test, a probalistic prime test based
@@ -190,7 +200,7 @@ input error checking."
   ;; a perfect square
   (let ((int-sqrt (isqrt n)))
     (when (= (* int-sqrt int-sqrt) n)
-      (return nil)))
+      (return-from lucas-probable nil)))
   ;; ok. The main test.
   ;; First, find suitable
   ;; D and Q parameters.
@@ -241,21 +251,21 @@ jacobi symbol n/k."
 	  ()
 	  "JACOBI: second arg must be a positive, odd integer, not ~A ~S" (type-of k) k)
   (do ((n (mod n k))
-       (t 1))
+       (tee 1))
       ((= n 0) (if (= k 1)
-		   t
+		   tee
 		   0))
     (do ()
 	((= (mod n 2) 1))
       (setv n (/ n 2))
       (let ((r (mod k 8)))
 	(when (member r '(3 5))
-	 (setv t (- t)))
+	 (setv tee (- tee)))
 	(rotatef n k)
 	(when (and
 	       (= (mod n 4) 3)
 	       (= (mod k 4) 3))
-	  (setf t (- t)))
+	  (setf tee (- tee)))
 	(setf n (mod n k))))))
 
 (defun binary-expansion (n)

@@ -17,8 +17,7 @@
 (defpackage #:prime-utils
   (:use :cl)
   (:import-from :alexandria
-		:emptyp)
-  (:import-from :serapeum
+		:emptyp
 		:last-elt)
   (:export :primep
 	   :baillie-psw

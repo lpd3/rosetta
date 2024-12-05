@@ -1,19 +1,3 @@
-(eval-when (:load-toplevel)
-  (qml:quicklisp))
-  
-(let ((dependencies
-       '(:alexandria
-         :serapeum
-         :iterate
-         :series
-         :cl-ppcre
-         :repl-utilities
-         :computable-reals
-	 :fiveam)))
-  (dolist (dep dependencies)
-    (when (not (find-package dep))
-      (quicklisp:quickload dep))))
-
 (in-package :asdf-user)
 
 (defsystem "rosetta"
