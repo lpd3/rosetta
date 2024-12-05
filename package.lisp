@@ -28,7 +28,9 @@
 
 (defpackage #:prime-test
   (:use :cl :prime-utils
-	:fiveam))
+	:fiveam)
+  (:import-from :serapeum
+		:random-in-range))
                 
 (defpackage #:ros-01
   (:shadowing-import-from :ros-utils

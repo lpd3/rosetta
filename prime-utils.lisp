@@ -176,7 +176,7 @@ error-checked."
 	  (result 1)
 	  (exponent e))
 	 ((zerop exponent) result)
-       (when (= (mod exponenent 2) 1)
+       (when (= (mod exponent 2) 1)
 	 (setf result (mod (* result base) m)))
        (setf exponent (ash exponent -1)
 	     base (mod (* base base) m))))))
