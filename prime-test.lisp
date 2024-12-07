@@ -34,11 +34,15 @@
   "Top level test suite for all tests on functions 
 in rosetta/prime-utils.lisp")
 
+(setv *num-trials* 50
+      *max-trials* 100)
+
+
 (def-suite* modular-exponentiation
     :description
-    "Test the modular-exponentiation function"
-    :in
-    prime-utils)
+  "Test the modular-exponentiation function"
+  :in
+  prime-utils)
 
 ;; args to modular-exponentiation:
 ;; n: the base, a non-negative integer
@@ -143,67 +147,159 @@ in rosetta/prime-utils.lisp")
      0
      (rand-int))))
 
+(def-suite* v-square
+  :description
+  "Test the v-square function"
+  :in
+  prime-utils)
+
+(test (vs-works
+       :depends-on
+       (and
+	me-works
+	me-outliers
+	me-errors))
+  (for-all ((u (gen-integer)
+	       (plusp u))
+	    (v (gen-integer)
+	       (plusp v))
+	    (d (gen-integer)
+	       (and
+		 (oddp d)
+		(>= (abs d)
+		    5)))
+	    (n (gen-integer)
+	       (> n 1)))
+
+    (is (= (v-square u v d n)
+	   (mod
+	    (/
+	     (+
+	      (* v v)
+	      (* d u u))
+	     2)
+	    n)))))
+
+(def-suite* u-square
+    :description
+  "Suite for the u-square
+   function")
+
+(test us-works
+  (for-all ((u (gen-integer)
+	       (plusp u))
+	    (v (gen-integer)
+	       (plusp v))
+	    (n (gen-integer)
+	       (> n 1)))
+    (is (= (u-square u v n)
+	   (mod
+	    (* u v)
+	    n)))))
+
+(def-suite* u-inc
+  :description
+  "Suite to test the u-inc
+   function")
+
+(test ui-works-even-dividend
+  (for-all* ((u (gen-integer)
+	        (plusp u))
+	     (v (gen-integer)
+	        (and
+		 (plusp v)
+		 (if
+		  (oddp u)
+		  (oddp v)
+		  (evenp v))))
+	     (n (gen-integer)
+		(> n 1)))
+    (is (= (u-int u v n)
+	   (/
+	    (+ u v)
+	    2)))))
+
+(test ui-works-odd-dividend
+  (for-all* ((u (gen-intrger)
+		(plusp u))
+	     (v (gen-integer)
+		(and
+		 (plusp v)
+		 (if
+		  (oddp u)
+		  (evenp v)
+		  (oddp v))))
+	     (n (gen-integer)
+		(and
+		 (> n 1)
+		 (oddp n))))
+    (is (= (u-inc u v n)
+	   (mod
+	    (/
+	     (+ u v n)
+	     2)
+	    n)))))
+
+(def-suite* v-inc
+  :description
+  "Suite to test the 
+  v-inc function")
+
+(test vi-works-even-dividend
+  (for-all* ((u (gen-intrger)
+		(plusp u))
+	     (v (gen-integer)
+		(and
+		 (plusp v)
+		 (if
+		  (oddp u)
+		  (oddp v)
+		  (evenp v))))
+	     (d (gen-integer)
+		(and
+		 (oddp d)
+		 (>=
+		  (abs d)
+		  5)))
+	     (n (gen-integer)
+		(> n 1)))
+    (is (= (v-inc u v p n)
+	   (mod
+	    (/
+	     (+
+	      (* d u)
+	      v)
+	     2)
+	    n)))))
+
+(test vi-works-odd-dividend
+  (for-all* ((u (gen-integer)
+		(plusp u))
+	     (v (gen-integer)
+		(and
+		 (plusp v)
+		 (if
+		  (oddp u)
+		  (evenp v)
+		  (oddp v))))
+	     (p (gen-integer)
+		(and
+		 (oddp p)
+		 (>=
+		  (abs p)
+		  5)))
+	     (n (gen-integer)
+		(> n 1)))
+  (is (= (v-inc u v p n)
+	 (mod
+	  (/
+	   (+
+	    (* d u)
+	    v
+	    n)
+	   2)
+	  n)))))
 
 
 
 
-
-
-
-
-   
-
-#|
-Dependency tree				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-primep					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|--- *small-primes* (var)		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|     |					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|     |--- init-small-primes		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|          |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|          |--- *small-primes-limit* (var) ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|--- *largest-small-prime* (var)	; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|     |					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|     |--- *small-primes* (var, see above) ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|--- *baillie-psw-limit* (var)		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|--- baillie-psw			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|--- miller-rabin			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |    |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |    |--- num-twos			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |    |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |    |--- modular-exponentiation	; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--    |--- lucas-probable		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- find-d			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |    |			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |    |--- jacobi		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- binary-expansion		; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- u-square			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- v-square			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |    |			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |    |--- modular-exponentiation (see above) ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- u-inc			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |				; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
--         |--- v-inc			; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-					; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ; ;
-|#
-;;; fiveam vars
-(setf *on-error* :backtrace
-      ;; print backtrace on unexpected error
-      *on-failure* nil
-      ;; keep going on test failure
-      *print-names* t
-      ;; print the names of tests as they are being run
-      *verbose-failures* t
-      ;; display as much info about failures as possible.
-      )
