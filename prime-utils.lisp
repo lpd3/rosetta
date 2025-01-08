@@ -100,22 +100,27 @@
     ; It is known for certain that all composite numbers less than or equal to this limit will fail
     ; the Baillie-PSW Prime test. It is worth the effort to pursue this test.
     (values (baillie-psw n) t)
-    ; Otherwise, we should run a miller-rabin test a sufficient number of times so that we can be
-    ; so that we can provide an extremely (but not completely) reliable answer.
-    ; If n fails, it must be composite. If it passes, there is an extraordinarily small
-    ; chance that it is still composite. So the certainty is the opposite of the result.
-    (let* ((runs (ceiling (log n 2)))
-           (result (miller rabin n runs)))
-      (values result (not result)))))
-
+    ; It has not been proven that the Baillie-PSW test is fool-proof against all odd composite
+    ; numbers > the *baillie-psw-limit*. However no composite number has been found that foils
+    ; the test. We should run the test. If the number passes the test, we will report also that
+    ; the result is uncertain. If the number fails the test, it is certainly composite. Therefore,
+    ; the certainty will be the opposite of the test result.
+    (let* ((result (baillie-psw n))
+           (certainty (not result)))
+      (values result certainty))))
+     
 (defun baillie-psw (n)
-  "Performs a baillie-psw test, which is guaranteed to be accurate for numbers that are no larger than the *baillie-psw-limit* An open question in mathematics is if there is any composite number
-that passes this test. While both subtests produce false positives, those have been different numbers. It has been postulated that
+  "https://en.m.wikipedia.org/wiki/Baillie%E2%80%93PSW_primality_test 
+Performs a baillie-psw test, which is guaranteed to be accurate for numbers that are no larger
+than the *baillie-psw-limit*.  An open question in mathematics is if there is any composite number
+that passes this test. While both subtests produce false positives, those have been different
+numbers. It has been postulated that
 the false positives produced are disjoint sets of numbers."
   (and (miller-rabin n) (lucas-probable n)))
 	  
 (defun miller-rabin (n &optional (runs 1 suppliedp))
-  "Miller-Rabin Probable Prime test. Takes a mandatory arg N,
+  "https://en.m.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
+Miller-Rabin Probable Prime test. Takes a mandatory arg N,
    which should be an integer larger than 4, but no type-checking
    is performed. Takes an
    optional RUNS argument, a positive integer specifying the number
@@ -206,7 +211,8 @@ the false positives produced are disjoint sets of numbers."
 	     base (mod (* base base) m))))))
 
 (defun lucas-probable (n)
-  "Lucas pobable prime test, a probalistic prime test based
+  "https://en.m.wikipedia.org/wiki/Lucas_pseudoprime
+Lucas pobable prime test, a probalistic prime test based
 on a Lucas series.
 It is guaranteed to never produce a 
 false negative. On occasion,  it produces a false
@@ -250,7 +256,8 @@ the Jacobi symbol D/n = -1."
 	  (return-from find-d d)))
 
 (defun jacobi (n k)
-  "Given two integers n and k, return the 
+  "https://en.m.wikipedia.org/wiki/Jacobi_symbol
+Given two integers n and k, return the 
 jacobi symbol n/k (this is not a quotient.)"
   (assert (integerp n)
 	  ()
@@ -262,21 +269,24 @@ jacobi symbol n/k (this is not a quotient.)"
 	  ()
 	  "JACOBI: second arg must be a positive, odd integer, not ~A ~S" (type-of k) k)
   (do ((n (mod n k))
-       (tee 1))
+       ; Common Lisp coerces symbol names to uppercase by default. But 'T' is already in use
+       ; as the general Boolean 'true' value. So I specify a lowercase 't', the variable used
+       ; in the math, by enclosing the symbol in vertical lines.
+       (|t| 1))
       ((= n 0) (if (= k 1)
-		   tee
+		   |t|
 		   0))
     (do ()
 	((= (mod n 2) 1))
       (setv n (/ n 2))
       (let ((r (mod k 8)))
 	(when (member r '(3 5))
-	 (setv tee (- tee)))
+	 (setv |t| (- |t|)))
 	(rotatef n k)
 	(when (and
 	       (= (mod n 4) 3)
 	       (= (mod k 4) 3))
-	  (setf tee (- tee)))
+	  (setf |t| (- |t|)))
 	(setf n (mod n k))))))
 
 (defun binary-expansion (n)
