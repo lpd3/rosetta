@@ -1998,36 +1998,37 @@ gap 	msp* 	ep**
 * msp: minimal starting prime
 ** ep: ending prime
 
-For the purposes of this task, considering only primes greater than 2, consider prime gaps that differ by exactly two to be adjacent. 
+For the purposes of this task, considering only primes greater than 2, consider prime gaps that
+differ by exactly two to be adjacent.   ;
 
 
 Task
 
-For each order of magnitude m from 10¹ through
-10⁶:
+For each order of magnitude m from 10^1 through
+10^6:
 
-  •  Find the first two sets of minimum adjacent
-     prime gaps where the absolute value of the
+  *  Find the first two sets of minimum adjacent
+      prime gaps where the absolute value of the
      difference between the prime gap start
      values is greater than m.
 
 
 E.G.
 
-For an m of 10¹;
+For an m of 10^1;
 
 The start value of gap 2 is 3, the start value of
-gap 4 is 7, the difference is 7 - 3 or 4. 4 < 10¹
+gap 4 is 7, the difference is 7 - 3 or 4. 4 < 10^1¹
 so keep going.
 
 The start value of gap 4 is 7, the start value of
 gap 6 is 23, the difference is 23 - 7, or 16. 16 >
-10¹ so this the earliest adjacent gap
-difference > 10¹.
+10^1 so this the earliest adjacent gap
+difference > 10^1.
 
 Stretch goal
 
-  • Do the same for 10⁷ and 10⁸ (and higher?)
+  * Do the same for 10^7 and 10^8 (and higher?)
     orders of magnitude
 
 Note: the earliest value found for each order

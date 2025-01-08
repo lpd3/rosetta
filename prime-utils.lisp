@@ -47,40 +47,66 @@
   (init-small-primes)
   "Vector that holds the prime numbers less than *small-prime-limit*")
 
+(defparameter *largest-small-prime*
+  (aref *small-primes* (1- (length *small-primes*)))
+  "The largest integer in the *small-primes* vector.")
+
 (defun square (x)
   "The square of x"
   (* x x))
 
 (defun primep (n)
-  "Is N a prime number? Signals an error if n is not an integer >= 0."
-  (when (or (not (integerp n))
-	    (minusp n))
-    (error "PRIMEP requires a non-negative integer, not ~A ~S."
-	   (type-of n)
-	   n))
-  (cond
-   ((< n 2)
-    nil)
-   ((< n 4)
-    t)
-   ((= (mod n 2) 0) t)
-   ((< n 1000)
-    (if (find n *small-primes*)
-	t
-      nil))
-   ((<= n (square (last-elt *small-primes*)))
-    (loop with search-limit = (isqrt n)
-	  for prime in *small-primes*
-	  while (<= prime search-limit)
-	    when (= (mod n prime) 0)
-	    do
-	    (return nil)
-	  finally
-	  (return t)))
-   ((<= n *baillie-psw-limit*)
-    (baillie-psw n))
-   (t
-    (error "Input to `primep` (~D) is too large. Numbers must be no greater than ~D" n *baillie-psw-limit*))))
+  "Is N a prime number?
+  Returns two values, both Booleans. The first is whether the number is
+  prime (or probably probably prime). The second is true when the answer
+  is not completely certain. The second value will always be t if the 
+  the first value is nil or if n < *baillie-psw-limit*."
+  (when (not (numberp n))
+    (error "PRIMEP requires a number, not ~A ~S."
+	   (type-of n)))
+  (when (complexp n)
+    ; Imaginary numbers and complex numbers that are not real integers are never prime
+    (return-from primep (values nil t)))
+  ; Eases dealing with float inputs
+  (when (floatp n)
+    (setq n (rationalize n)))
+  ; Fractional numbers are never prime
+  (when (not (integerp n))
+    (return-from primep (values nil t)))
+  
+  
+  (when (< n 2)
+    ; n must be a negative integer, 0 or 1. None of these are prime.
+    (return-from primep (values nil t)))
+  (loop for prime across *small-primes*
+        when (= n prime)
+        ; n is one of the small primes
+        do
+        (return-from primep (values t t))
+        when (zerop (mod n prime))
+        ; n /= prime and prime|n. n is not prime.
+        do
+        (return-from primep (values nil t)))
+  ; If we got this far, then n is larger than the largest small prime and is not divisible by any
+  ; small prime. Perhaps n is a perfect square? This can be true only if n is larger than the
+  ; square of the largest small prime
+  (when (> n (expt *largest-small-prime* 2))
+    (let ((integer-sqrt-n (isqrt n)))
+      (when (= integer-sqrt-n (sqrt n))
+        ; If the integer square root equals the square root, n is a perfect square, and not prime.
+        (return-from primep (values nil t)))))
+  ; Ok. We still don't know. Time for some tougher testing.
+  (if (<= n *baillie-psw-limit*)
+    ; It is known for certain that all composite numbers less than or equal to this limit will fail
+    ; the Baillie-PSW Prime test. It is worth the effort to pursue this test.
+    (values (baillie-psw n) t)
+    ; Otherwise, we should run a miller-rabin test a sufficient number of times so that we can be
+    ; so that we can provide an extremely (but not completely) reliable answer.
+    ; If n fails, it must be composite. If it passes, there is an extraordinarily small
+    ; chance that it is still composite. So the certainty is the opposite of the result.
+    (let* ((runs (ceiling (log n 2)))
+           (result (miller rabin n runs)))
+      (values result (not result)))))
 
 (defun baillie-psw (n)
   "Performs a baillie-psw test, which is guaranteed to be accurate for numbers that are no larger than the *baillie-psw-limit* An open question in mathematics is if there is any composite number
@@ -88,38 +114,36 @@ that passes this test. While both subtests produce false positives, those have b
 the false positives produced are disjoint sets of numbers."
   (and (miller-rabin n) (lucas-probable n)))
 	  
-(defun miller-rabin (n &optional (number-of-runs 1) (bases '(2)))
-  "Miller-Rabin Probable Prime test. A probabilistic test, 
-  it never returns a false negative. It produces false 
-  positives in up to 1/4 of cases. When run alone, it is
-  typical to run several times using different 'bases'. 
-  When run as part of the baillie-psw test, it is run once,
-  and only with base 2. Takes a positive integer n to test
-  for primality. Returns a generalized boolean. Optional
-  arguments are the number-of-runs (defaulting to 1) and
-  bases, which should either be nil or a list of bases, 
-  defaulting to '(2)'. One base is used for each run until
-  the list is exhausted. Sssumes the test is being run
-as part of a Baillie-PSW test. The n is not 
-error-checked."
+(defun miller-rabin (n &optional (runs 1 suppliedp))
+  "Miller-Rabin Probable Prime test. Takes a mandatory arg N,
+   which should be an integer larger than 4, but no type-checking
+   is performed. Takes an
+   optional RUNS argument, a positive integer specifying the number
+   of runs to make. If RUNS is not supplied, then it is assumed
+   that this test is being run as part of a Ballie-PSW test, in
+   which case one run will be performed with a witness base of 2.
+   Otherwise, the test will be run RUNS times, with random 
+   appropriate integers being chosen as witnesses. Note that 
+   a run may therefore be repeated with the same witness. 
+   Returns a generalized Boolean, with t
+   signifying that n is probably prime and nil signifying that n is
+   is not prime with absolute certainty."
   (assert (and (integerp runs)
 	       (plusp runs))
 	  ()
 	  "MILLER-RABIN: 'runs' argument must be positive integer, not ~A ~S" (type-of n) n)
-  (assert (and (listp bases)
-	       (every #'(lambda (base)
-			  (and (integerp base)
-			       (> 1 base)
-			       (< (1- n) base)))
-		      bases))
-	  ()
-	  "MILLER-RABIN: Arg `base` must be a list that is either empty, or contains only integers such that each integer is greater than 1 and less than n-1. Your entry: ~A ~S" (type-of bases) bases)
+  
+  (assert (> n 3)
+    ()
+    "MILLER-RABIN: n must be > 3. Received ~D." n)
+
   (let* ((num-twos-n-minus-one (num-twos (1- n)))
 	 (n-minus-one-no-twos (/ n (expt 2 num-twos-n-minus-one))))
+
     (dotimes (_ number-of-runs t)
-      (let* ((base (if bases
-		      (first bases)
-		      (+ (random (- n 3)) 2)))
+      (let* ((base (if (suppliedp runs)
+		       2
+		       (+ (random (- n 3)) 2)))
 	     (x (modular-exponentiation
 		 base n-minus-one-no-twos n)))
 	(dotimes (_ num-twos-n-minus-one)
@@ -189,26 +213,13 @@ false negative. On occasion,  it produces a false
 positive. Assumes the test 
 is being run as part of a Baillie-PSW test. Does no 
 input error checking."
-  ;; We already know n is
-  ;; 1. odd
-  ;; 2. greater than 2
-  ;; 3. not divisible by
-  ;; small primes.
-  ;; As a final preliminary
-  ;; test, we need to make
-  ;; sure that n is not
-  ;; a perfect square
-  (let ((int-sqrt (isqrt n)))
-    (when (= (* int-sqrt int-sqrt) n)
-      (return-from lucas-probable nil)))
-  ;; ok. The main test.
   ;; First, find suitable
   ;; D and Q parameters.
   ;; Set the P parameter to
   ;; 1. Get the binary
   ;; expansion of n+1 as
   ;; a big-endian adjustable
-  ;; vector
+  ;; vector.
   (let* ((d (find-d n))
 	 (q (/ (- 1 d) 4))
 	 (p 1)
@@ -240,7 +251,7 @@ the Jacobi symbol D/n = -1."
 
 (defun jacobi (n k)
   "Given two integers n and k, return the 
-jacobi symbol n/k."
+jacobi symbol n/k (this is not a quotient.)"
   (assert (integerp n)
 	  ()
 	  "JACOBI: first arg must be an integer, not ~A ~S" (type-of n) n)
@@ -286,14 +297,14 @@ binary equivalent of n"
 		     :fill-pointer 0)))
     (cond
       ((zerop n)
-       (push 0 result)
+       (vector-push-extend 0 result)
        result)
       (t
        (do ((remainder n (ash n -1)))
 	   ((zerop remainder) result)
 	 (if (oddp remainder)
-	     (push 1 result)
-	     (push 0 result)))))))
+	     (vector-push-extend 1 result)
+	     (vector-push-extend 0 result)))))))
 
 (defun u-square (u v n)
   "Helper function for lucas-probable. With args U[k], 
@@ -352,9 +363,3 @@ V[2k+1]"
 	  2)
 	 n)
 	(/ dividend 2))))
-
-
-
-
- 
-     
