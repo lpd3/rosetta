@@ -11,14 +11,23 @@
                "iterate" "series" "cl-ppcre"
                "repl-utilities" "computable-reals" "fiveam")
   :serial t
-  :components ((:file "package")
-               (:file "utilities")
-               (:file "prime-utils")
-	       (:file "prime-test")
-	       (:file "rc-001")
-               (:file "rc-002")
-               (:file "rc-003")
-               (:file "rc-004")
-               (:file "rc-005")
-               (:file "rc-006")))
-                
+  :components ((:file "src/packages")
+               (:file "src/utilities")
+               (:file "src/prime-utils")
+	       (:file "src/rc-001")
+               (:file "src/rc-002")
+               (:file "src/rc-003")
+               (:file "src/rc-004")
+               (:file "src/rc-005")
+               (:file "src/rc-006"))
+  :in-order-to ((test-op (test-op "rosetta/test"))))
+
+(defsystem "rosetta/test"
+  :depends-on ("rosetta" "parachute" "alexandria" "serapeum")
+  :serial t
+  :components ((:file "test/packages")
+               (:file "test/prime-utils-test"))
+  :perform (test-op (o s)
+                    (uiop:symbol-call :parachute '#:test
+                      (uiop:find-symbol* '#:prime-utils-test-suite :prime-utils-test))))
+  

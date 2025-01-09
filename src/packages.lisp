@@ -22,16 +22,13 @@
   (:export :primep
 	   :baillie-psw
 	   :miller-rabin
-	   :lucas-probable
+	   :lucas
 	   :modular-exponentiation
-	   :binary-expansion ))
+	   :binary-expansion
+           :square
+           :jacobi
+           :perfect-square-p))
 
-(defpackage #:prime-test
-  (:use :cl :prime-utils
-	:fiveam)
-  (:import-from :serapeum
-		:random-in-range))
-                
 (defpackage #:ros-01
   #+ecl (:shadowing-import-from :ros-utils
 			  :rationalize)
