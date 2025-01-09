@@ -47,10 +47,6 @@
   (init-small-primes)
   "Vector that holds the prime numbers less than *small-prime-limit*")
 
-(defparameter *largest-small-prime*
-  (aref *small-primes* (1- (length *small-primes*)))
-  "The largest integer in the *small-primes* vector.")
-
 (defun square (x)
   "The square of x"
   (* x x))
@@ -90,11 +86,12 @@
   ; If we got this far, then n is larger than the largest small prime and is not divisible by any
   ; small prime. Perhaps n is a perfect square? This can be true only if n is larger than the
   ; square of the largest small prime
-  (when (> n (expt *largest-small-prime* 2))
-    (let ((integer-sqrt-n (isqrt n)))
-      (when (= integer-sqrt-n (sqrt n))
-        ; If the integer square root equals the square root, n is a perfect square, and not prime.
-        (return-from primep (values nil t)))))
+  (let ((largest-small-prime (aref *small-primes* (1- (length *small-primes*)))))
+    (when (> n (square largest-small-prime))
+      (let ((integer-sqrt-n (isqrt n)))
+        (when (= integer-sqrt-n (sqrt n))
+                                        ; If the integer square root equals the square root, n is a perfect square, and not prime.
+          (return-from primep (values nil t))))))
   ; Ok. We still don't know. Time for some tougher testing.
   (if (<= n *baillie-psw-limit*)
     ; It is known for certain that all composite numbers less than or equal to this limit will fail

@@ -8,9 +8,8 @@
 #| Formal Power Series
    
 A power series is an infinite sum of the form 
-language you may know.
 
-a0 + a1 ⋅ x + a2 ⋅ x^2 + a3 ⋅ x^3 + ⋯ 
+a0 + a1 * x + a2 * x^2 + a3 * x^3 + ... 
 
 
 The a[i] are called the coefficients of the 
@@ -52,16 +51,17 @@ evaluation.
 ;; possible. Since we are principally 
 ;; interested in the laziness of series 
 ;; objects, and not optimization, we shut 
-;; off the warnings 
+;; off the warnings.
 
 (setf *suppress-series-warnings* t)       
-        
+
+
 (defclass fps ()
   ((contents
     :accessor cont
     :initarg :cont
     :initform (scan-range)
-    :type (series number)
+    :type (series 'number)
     :documentation
     "A SERIES object, it contains the
     coefficients of the fps"))
@@ -132,20 +132,23 @@ evaluation.
 
 (defun + (&rest xs)
   "In Common Lisp, we can call + with 
-  no arguments. 0 is returned. So we begin
-  there.
+  no arguments. 
   We need this ``gateway function''
   because generic functions cannot 
-  specialize on optional parameters."
+  specialize on optional parameters.
+  In CL, when no args are supplied, 0 is returned. When one arg is supplied, it is returned
+  unchanged. When two args are supplied, their sum is returned. Otherwise, the sum
+  of the first two args is calculated. Then this is added to the third arg. The 
+  process continues until all args are exhausted and the final result is returned."
   (case (length xs)
     (0 0)
-    (1 (car xs))
-    (2 (generic-+ (car xs) (cadr xs)))
+    (1 (first xs))
+    (2 (generic-+ (first xs) (second xs)))
     (otherwise
      (apply
       #'+
-      (generic-+ (car xs) (cadr xs))
-      (cddr xs)))))
+      (generic-+ (first xs) (second xs))
+      (rest (rest xs))))))
 
 (defgeneric negate (x)
   (:documentation
@@ -156,14 +159,17 @@ evaluation.
     to formal power series."))
  
 (defun - (x &rest xs)
+  "In Common Lisp, - may take one or more args. If one arg is supplied, the additive inverse of the
+   arg is returned. When two args are supplied, the difference of the args are returned.
+   Otherwise, the 2nd arg is subtracted from the first, the third arg is subtracted from the
+   difference, etc."
   (case (length xs)
     (0 (negate x))
     (1 (generic-- x (car xs)))
     (otherwise
      (apply
       #'-
-      (generic-- x (car xs))
-      (cdr xs)))))   
+      (generic-- x (car xs)) (cdr xs)))))   
 
 
 (defgeneric generic-* (x y)
@@ -172,10 +178,14 @@ evaluation.
    
 (defun * (&rest xs)
   "Common Lisp accepts * with no 
-  arguments. 1 is returned. We need this
+  arguments. We need this
   ``gateway function'' because Common 
   Lisp generic functions cannot specialize
-  on optional parameters."
+  on optional parameters.
+  In CL, when no args are supplied, 1 is returned. When one arg is supplied, it is returned
+  unchanged. When two args are supplied, their product is returned. Otherwise, the product
+  of the first two args is calculated. Then this is multiplied by the third arg. The 
+  process continues until all args are exhausted and the final result is returned."
   (case (length xs)
     (0 1)
     (1 (etypecase (car xs)
@@ -185,8 +195,7 @@ evaluation.
     (otherwise
      (apply
       #'*
-      (generic-* (car xs) (cadr xs))
-      (cddr xs)))))
+      (generic-* (car xs) (cadr xs)) (cddr xs)))))
 
 (defgeneric invert (x)
   (:documentation
@@ -198,6 +207,11 @@ evaluation.
     to formal power series."))
 
 (defun / (x &rest xs)
+  "In Common Lisp, this function can take one or more args. If given one arg, the multiplicative
+   inverse of the arg is returned. If two args are supplied, the quotient of the args is returned.
+   Otherwise, the quotient of the first two args is calculated. Then this is divided by the third
+   argument, with the successive divisions continuing until the args are exhausted. The final 
+   result is returned."
   (case (length xs)
     (0 (invert x))
     (1 (generic-/ x (car xs)))
@@ -210,7 +224,7 @@ evaluation.
 (defgeneric expt (base exponent)
   (:documentation
    "Exponentiation extended to formal
-   power series."))      
+   power series. Exponentiation in CL, as in most other languages takes exactly two args"))      
    
 (defmethod generic-+ ((x number) (y number))
   "Re-implement + for numbers."
@@ -332,7 +346,7 @@ evaluation.
               (scan-range)))))))
 
 (defmethod generic-/ ((x fps) (y number))
-  (if (zerop number)
+  (if (zerop y)
       (error
        "Division of a fps by zero")
       (* x (cl:/ y))))
@@ -434,7 +448,7 @@ evaluation.
       (apply #'cl:*
         (iota x :start 1))))
 
-(defparameter sin-fps`
+(defparameter *sin-fps*
   (fps
    #'(lambda (n)
        (if (evenp n)
@@ -444,7 +458,7 @@ evaluation.
   "Sin function represented as a formal
   power series.")
 
-(defparameter cos-fps
+(defparameter *cos-fps*
   (fps
    #'(lambda (n)
        (if (oddp n)
@@ -452,24 +466,5 @@ evaluation.
            (cl:/ (cl:expt -1 (cl:/ n 2))
                  (factorial n)))))
   "cos function represented as a formal
-  power series.")
+  power series")
 
-                   
-                                       
-                                   
-                              
-                                      
-                                      
-                                          
-                
-
-                            
- 
-  
-
-      
-                      
-             
-   
-    
-                                                                                                                                          

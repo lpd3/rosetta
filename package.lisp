@@ -1,7 +1,7 @@
 ;;;; package.lisp
                 
 (defpackage #:ros-utils
-  (:shadow :rationalize)
+  #+ecl (:shadow :rationalize)
   (:use :cl :iterate)
   (:import-from :alexandria
      :with-gensyms)
@@ -33,7 +33,7 @@
 		:random-in-range))
                 
 (defpackage #:ros-01
-  (:shadowing-import-from :ros-utils
+  #+ecl (:shadowing-import-from :ros-utils
 			  :rationalize)
   (:use :cl :iterate :cl-ppcre :computable-reals)
   (:import-from :ros-utils

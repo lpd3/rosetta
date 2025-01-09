@@ -319,21 +319,23 @@ nine factorial symbols (!) after the 9.
   (if (zerop (length suffixes))
       nil
       (multiple-value-bind
-          (start end _ _)
+          (start end _ __)
           (scan "^!+" suffixes)
+        (declare (ignore _ __))
         (if start
             (append
-              (suffixes->fn-list
-               (subseq suffixes end))
-              (list (multi-fac end)))
+             (suffixes->fn-list
+              (subseq suffixes end))
+             (list (multi-fac end)))
             (iter
               (for (regex . key) in *keys*)
               (multiple-value-bind
-                  (start end _ _)
+                    (start end _ __)
                   (scan regex suffixes)
+                (declare (ignore _ __))
                 (when start
                   (return
-                   (append
+                    (append
                      (suffixes->fn-list
                       (subseq suffixes end))
                      (list (multi-branch key))))))
@@ -660,7 +662,7 @@ the language limitations. |#
   
 ;; Finally, the required task
 
-(=defun words ()
+(=defun words* ()
   (amb-bind word1 '("the" "that" "a")
     (amb-bind word2 '("frog" "elephant" "thing")
       (amb-bind word3 '("walked" "treaded" "grows")
@@ -668,7 +670,7 @@ the language limitations. |#
           (=values word1 word2 word3 word4))))))
 
 (=defun amb-main ()
-   (=bind (w1 w2 w3 w4) (words)
+   (=bind (w1 w2 w3 w4) (words*)
       (if
        (and
         (char= (char w1 (1- (length w1)))
@@ -1760,7 +1762,7 @@ Don't worry about precision error in the
   "Struct that represents a continued
   fraction."
   (integral 0 :type integer)
-  (fractional nil :type (list integer))
+  (fractional nil :type list)
   (repeatingp nil :type boolean)
   (repeat-start nil :type (or integer null))
   (repeat-end nil :type (or integer null)))

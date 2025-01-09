@@ -132,7 +132,7 @@ The goal is to create an associative array
   (make-hash-table
    :test #'equal
    :size 200
-   :rehash-size 1.0
+   :rehash-size 2.0
    :rehash-threshold 0.75)
   "The hash-table is a basic type in 
   common lisp. All arguments 
@@ -580,6 +580,7 @@ reinforcements to from HQ?
   (let ((distances
          (maphash-new
           #'(lambda (k _)
+              (declare (ignore _))
               (values
                k (list (list* :distance 
                               +infinity+)
@@ -641,41 +642,42 @@ reinforcements to from HQ?
   defaulting to *vertices), return a 
   list of the shortest paths to 
   a cell having a 0 value."
+  (declare (ignore graph))
   (iter
-   (with not-seen = (hash-table-keys vertices))
-   (with distances = (init-distance-dict
-                      vertices start))
-   (with node-queue = (queue start))
-   (with path-list = nil)
-   (until (queue-empty-p node-queue))
-   (let ((cur (deq node-queue)))
-     (if (zerop (value cur vertices))
-         (push (list*
-                (path cur distances)
-                (1- (length (path cur distances))))
-               path-list)
-         (dolist (neighbor (neighbors cur vertices))
-           (when 
-             (member neighbor not-seen :test #'equal)
-             (when
-               (< (1+ (distance cur distances))
-                  (distance neighbor distances))
-               (setf
+    (with not-seen = (hash-table-keys vertices))
+    (with distances = (init-distance-dict
+                       vertices start))
+    (with node-queue = (queue start))
+    (with path-list = nil)
+    (until (queue-empty-p node-queue))
+    (let ((cur (deq node-queue)))
+      (if (zerop (value cur vertices))
+          (push (list*
+                 (path cur distances)
+                 (1- (length (path cur distances))))
+                path-list)
+          (dolist (neighbor (neighbors cur vertices))
+            (when 
+                (member neighbor not-seen :test #'equal)
+              (when
+                  (< (1+ (distance cur distances))
+                     (distance neighbor distances))
+                (setf
                  (distance neighbor distances)
                  (1+ (distance cur distances))
                  (path neighbor distances)
                  (append
-                   (path cur distances)
-                   (list neighbor)))
-               (enq neighbor node-queue)))))
-     (setf not-seen
-           (remove 
+                  (path cur distances)
+                  (list neighbor)))
+                (enq neighbor node-queue)))))
+      (setf not-seen
+            (remove 
              cur 
              not-seen 
              :test #'equal)))
-   (finally
-    (return 
-      (sort path-list #'< :key #'cdr)))))
+    (finally
+     (return 
+       (sort path-list #'< :key #'cdr)))))
 
 (defun shortest-of-short (paths-to-safety)
   "Given an alist with paths as keys and
@@ -1294,10 +1296,9 @@ Requirements
     (dotimes (row 4 (values))
       (dotimes (col 4)
         (format stream "~4A "
-          (let ((entry (aref tableau row col)))
-            (if-let ((entry (aref tableau row col)))
-              entry
-              #\_))))
+          (if-let ((entry (aref tableau row col)))
+            entry
+            #\_)))
       (terpri stream))))
 
 (defun shift-up (board)
@@ -1458,7 +1459,7 @@ Requirements
 (defun shift-right (board)
   (let ((tableau (tab board))
         (movep nil))
-    (dotimes (row 4 board)
+    (dotimes (row 4 (values board movep))
       (unless (aref tableau row 3)
         (cond
          ((aref tableau row 2)
@@ -1485,27 +1486,18 @@ Requirements
       (unless (aref tableau row 2)
         (cond
          ((aref tableau row 1)
-          (setf (aref tableau row 2)
-                (aref tableau row 1)
-                (aref tableau row 1)
-                nil
-                movep
-                t))
+          (setf (aref tableau row 2) (aref tableau row 1)
+                (aref tableau row 1) nil
+                movep t))
          ((aref tableau row 0)
-          (setf (aref tableau row 2)
-                (aref tableau row 0)
-                (aref tableau row 0)
-                nil
-                movep
-                t))))
+          (setf (aref tableau row 2) (aref tableau row 0)
+                (aref tableau row 0) nil
+                movep t))))
       (unless (aref tableau row 1)
         (when (aref tableau row 0)
-          (setf (aref tableau row 1)
-                (aref tableau row 0)
-                (aref tableau row 0)
-                nil
-                movep
-                t))))))           
+          (setf (aref tableau row 1) (aref tableau row 0)
+                (aref tableau row 0) nil
+                movep t))))))           
       
 (defun combine-up (board)
   (let ((tableau (tab board))
@@ -1741,21 +1733,20 @@ Requirements
           (return-from winp t))))))
 
 (defun play-2048 ()
-  (let ((q *query-io*)
-        (board (make-instance '2048-board))
+  (let ((board (make-instance '2048-board))
         (move nil))
-    (format q "~%~45:@<2048~>~2%")
+    (format t"~%~45:@<2048~>~2%")
     (loop
-      (format q "~A~%" board)
+      (format t"~A~%" board)
       (block choice
         (loop
-          (format q "(L)eft, (R)ight, (U)p, (D)own, (Q)uit")
+          (format t "(L)eft, (R)ight, (U)p, (D)own, (Q)uit")
           (setq move (char (read-line) 0))
           (cond
            ((find move "LRUDQlrudq")
             (return-from choice))
            (t
-            (format q "~%~A" board)))))
+            (format t "~%~A" board)))))
       (case move
         ((#\Q #\q)
          (format t "~%~46:@<BYE!~>")
@@ -1768,7 +1759,7 @@ Requirements
            (block win-eval
              (when changedp
                (when (winp board)
-                 (format q "~2%~YOU WON!~2%")
+                 (format t"~2%YOU WON!~2%")
                  (let ((againp
                         (y-or-n-p "Play again?")))
                    (cond
@@ -1784,16 +1775,16 @@ Requirements
                       (tab altered)))
                (block lose-eval
                  (when (losep board)
-                   (format q "~2%GAME OVER~2%")
+                   (format t"~2%GAME OVER~2%")
                    (cond
                      ((y-or-n-p "Play again?")
                       (setf board 
                             (make-instance '2048-board))
                       (return-from lose-eval))
                      (t
-                      (format t "~%~46:@>BYE!~>")
+                      (format t "~%~46:@<BYE!~>")
                       (return-from play-2048 (values))))))
-           (terpri q)))))))
+           (terpri)))))))
 
 ;; My only qualm is I can't get the columns
 ;; right.
