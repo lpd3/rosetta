@@ -12,6 +12,7 @@
                "repl-utilities" "computable-reals" "fiveam")
   :serial t
   :components ((:file "src/packages")
+               (:file "src/ros-conditions")
                (:file "src/utilities")
                (:file "src/prime-utils")
 	       (:file "src/rc-001")

@@ -4,39 +4,46 @@
 
 (in-package #:prime-utils)
 
-(defparameter *small-prime-limit*
-  1000
-  "The largest prime in the *small-primes* array will be 
-  the largest prime number less than this integer.")
 
 (eval-when (:compile-toplevel
             :load-toplevel
             :execute)
-  (defun init-small-primes (&optional (limit *small-prime-limit*))
-    "Initializes the *small-primes* parameter."
-    (let ((sieve (make-array (1+ limit) :element-type 'boolean :initial-element t)))
-      (setf (aref sieve 0) nil
-	    (aref sieve 1) nil)
-      (do ((index 4 (+ index 2)))
-	  ((> index limit))
-        (setf (aref sieve index) nil))
-      (do ((index 3 (+ index 2)))
-	  ((> index limit))
-        (when (aref sieve index)
-	  (do ((multiple (* index index) (+ multiple index)))
-	      ((> multiple 1000))
-	    (setf (aref sieve multiple) nil))))
-      (let ((primes (make-array (1+ limit)
-			        :element-type 'fixnum
-			        :adjustable t
-			        :fill-pointer 0))
-	    (prime-index 0))
-        (dotimes (sieve-index (1+ limit))
-	  (when (aref sieve sieve-index)
-	    (setf (aref primes prime-index) sieve-index)
-	    (incf prime-index)))
-        (adjust-array primes (fill-pointer primes))
-        primes))))
+  (progn
+    (defparameter *small-primes-limit*
+      1000
+      "The largest prime in the *small-primes* array will be 
+       the largest prime number less than this integer.")
+
+    (defun init-small-primes (&optional (limit *small-primes-limit*))
+      "Initializes the *small-primes* parameter."
+      (let ((sieve (make-array (1+ limit) :element-type 'boolean :initial-element t)))
+        (setf (aref sieve 0) nil
+	      (aref sieve 1) nil)
+        (do ((index 4 (+ index 2)))
+	    ((> index limit))
+          (setf (aref sieve index) nil))
+        (do ((index 3 (+ index 2)))
+	    ((> index limit))
+          (when (aref sieve index)
+	    (do ((multiple (* index index) (+ multiple index)))
+	        ((> multiple *small-primes-limit*))
+	      (setf (aref sieve multiple) nil))))
+        (let ((primes (make-array (1+ limit)
+			          :element-type 'fixnum
+			          :adjustable t
+			          :fill-pointer 0)))
+          (dotimes (sieve-index (1+ limit))
+	    (when (aref sieve sieve-index)
+	      (vector-push sieve-index primes)))
+          primes)))
+
+    (defparameter *small-primes*
+      (init-small-primes)
+      "Vector that holds the prime numbers less than *small-primes-limit*")))
+
+(defparameter *largest-small-prime*
+  (last-elt *small-primes*))
+
 
 (defparameter *baillie-psw-limit*
   (expt 2 64)
@@ -45,10 +52,6 @@
   It is known with certainly that there are no false baillie-psw primes
   less than 2^80. Whether or not there are composite numbers that pass the test
   is an open question in mathematics.")
-
-(defparameter *small-primes*
-  (init-small-primes)
-  "Vector that holds the prime numbers less than *small-prime-limit*")
 
 (defun square (x)
   "The square of x"
@@ -61,8 +64,11 @@
   is not completely certain. The second value will always be t if the 
   the first value is nil or if n < *baillie-psw-limit*."
   (when (not (numberp n))
-    (error "PRIMEP requires a number, not ~A ~S."
-	   (type-of n)))
+    (error 'type-error*
+      :argument n
+      :type (type-of n)
+      :location 'primep
+      :expected-type 'number))
   (when (complexp n)
     ; Imaginary numbers and complex numbers that are not real integers are never prime
     (return-from primep (values nil t)))
@@ -132,15 +138,17 @@ the false positives produced are disjoint sets of numbers."
   provably composite. A t means N is probably prime, with the 
   probability of being composite decreasing exponentially in 
   proportion to the number of test runs."
-  (assert (and (oddp n)
+  (unless (and (oddp n)
                (> n 3))
-    ()
-    "MILLER-RABIN: N must be odd and greater than 3. Received ~D." n)
-  (assert (< 1 base (1- n))
-    ()
-    "MILLER-RABIN: BASE ~D out of range for N ~D"
-    base
-    n)
+    (error 'domain-error
+      :argument n
+      :location "MILLER-RABIN: n"
+      :domain "n > 3, n is odd"))
+  (unless (< 1 base (1- n))
+    (error 'domain-error
+      :argument base
+      :location "MILLER-RABIN: base"
+      :domain (format nil "1 < base < n-1 (n = ~D)" n)))
   ;; Find s and d such that 2^sd = n-1.
   (multiple-value-bind
         (d s)
@@ -164,22 +172,45 @@ the false positives produced are disjoint sets of numbers."
 (defun modular-exponentiation (n e m)
   "Given N (the base: non-negative integer) M (modulus, positive integer, 
    return N^E mod M."
-  (assert (integerp n)
-	  ()
-	  "MODULAR-EXPONENTIATION: n must be integer, not ~A ~S" (type-of n) n)
-  (assert (and
-	   (integerp e)
-	   (not (minusp e)))
-	  ()
-	  "MODULAR-EXPONENTIATION: exponent must be a non-negative integer, not ~A ~S" (type-of e) e)
-  (assert (and
-	   (integerp m)
-	   (plusp m))
-	  ()
-	  "MODULAR-EXPONENTITATION: modulus must be a positive integer, not ~A ~S" (type-of m) m)
+  (unless (integerp n)
+    (error 'type-error*
+      :argument n
+      :type (type-of n)
+      :location "MODULAR-EXPONENTIATION: n"
+      :expected-type 'integer))
+  (when (minusp n)
+    (error 'domain-error
+      :argument n
+      :location "MODULAR-EXPONENTIATION: n"
+      :domain "n >= 0"))
+  (unless (integerp e)
+    (error 'type-error*
+      :argument e
+      :type (type-of e)
+      :location "MODULAR-EXPONENTIARION: e"
+      :expected-type 'integer))
+  (when (minusp e)
+    (error 'domain-error
+      :argument e
+      :location "MODULAR-EXPONENTIATION: e"
+      :domain "e >= 0"))
+  (unless (integerp m)
+    (error 'type-error*
+      :argument m
+      :type (type-of m)
+      :location "MODULAR-EXPONENTIATION: m"
+      :expected-type 'integer))
+  (unless (plusp m)
+    (error 'domain-error
+      :argument m
+      :location "MODULAR-EXPONENTIATION: m"
+      :domain "m > 1"))
   (cond
     ((and (zerop n) (zerop e))
-     (error "MODULAR-EXPONENTIATION: 0^0 is undefined"))
+     (error 'domain-error
+       :argument '(0 0)
+       :location "MODULAR-EXPONENTIATION: n & e"
+       :domain "n and e may not both be 0."))
     ((= m 1) 0)
     ((zerop n) 0)
     ((= n 1) 1)
@@ -195,7 +226,7 @@ the false positives produced are disjoint sets of numbers."
        (setf exponent (ash exponent -1)
 	     base (mod (* base base) m))))))
 
-(defun lucas-m-d-chooser (n)
+(defun lucas-d-chooser (n)
   "Helper function for Baillie-PSW. Given odd positive N, searches
    for an odd integer D such that the Jacobi symbol d/N /= 1. 
    If N is not a perfect square, the algorithm finds such a d in
@@ -227,12 +258,23 @@ the false positives produced are disjoint sets of numbers."
   "Given M (integer) and K (positive odd integer),
   return the Jacobi symbol M/K. This will be one of
   -1, 0 or 1."
-  (assert (integerp m)
-    ()
-    "JACOBI: First arg must be an integer, not ~A ~S" (type-of m) m)
-  (assert (and (integerp k) (oddp k) (plusp k))
-    ()
-    "JACOBI: Second arg must be a positive, odd integer, not ~A ~D" (type-of k) k)
+  (unless (integerp m)
+    (error 'type-error*
+      :argument m
+      :type (type-of m)
+      :location "JACOBI: m"
+      :expected-type 'integer))
+  (unless (integerp k)
+    (error 'type-error*
+      :argumument k
+      :type (type-of k)
+      :location "JACOBI: k"
+      :expected-type 'integer))
+  (unless (and (oddp k) (plusp k))
+    (error 'domain-error
+      :argument k
+      :location "JACOBI: k"
+      :domain "k > 0, k mod 2 = 1"))
   (do ((next-m (mod m k) (mod next-m next-k))
        (next-k k)
        (possible-j 1))
@@ -250,9 +292,12 @@ the false positives produced are disjoint sets of numbers."
 
 (defun perfect-square-p (x)
   "Is X (a number) a perfect square?"
-  (assert (numberp x)
-    ()
-    "PERFECT-SQUARE-P: x must be a number, not ~A ~S" (type-of x) x)
+  (unless (numberp x)
+    (error 'type-error*
+      :argument x
+      :type (type-of x)
+      :location 'perfect-square-p
+      :expected-type 'number))
   (let ((coerced-x
           (if (floatp x)
               (rationalize x)
@@ -265,7 +310,7 @@ the false positives produced are disjoint sets of numbers."
       ((zerop x)
        t)
       (t
-       (= (sqrt x) (isqrt x))))))
+       (= (sqrt x) (isqrt x)7)))))
 
 (defun lucas (n d p)
   "Lucas Probable Prime Test. Takes 3 args: 
@@ -310,11 +355,17 @@ decimal integer n, return
 an adjustable vector containing
 the big-endian bits of the 
 binary equivalent of n"
-  (assert (and (integerp n)
-	       (not (minusp n)))
-	  ()
-	  "BINARY-EXPANSION: arg must be a non-negative integer, not ~A ~S"
-	  (type-of n) n)
+  (unless (integerp n)
+    (error 'type-error*
+      :argument n
+      :type (type-of n)
+      :location 'binary-expansion
+      :expected-type 'integer))
+  (when (minusp n)
+    (error 'domain-error
+      :argument n
+      :location 'binary-expansion
+      :domain "n >= 0"))
   (let ((result
 	  (make-array 100
 		      :element-type fixnum
@@ -330,19 +381,3 @@ binary equivalent of n"
 	 (if (oddp remainder)
 	     (vector-push-extend 1 result)
 	     (vector-push-extend 0 result)))))))
-
-(defun u-v-subscript (k n p d)
-  "Helper function for the lucas test"
-  (let ((u 1)
-        (v p)
-        (digits (binary-expansion n)))
-    (do ((i 1 (1+ i))
-         (u-next (mod (* u v) n) (mod (* u-next v-next) n))
-         (v-next (div2mod (+ (* v v) (* d u u)) n)
-                 (div2mod (+ (* v-next v-next) (* d u-next u-next)) n)))
-        ((= i (length digits)) (values u-next v-next))
-      (let ((digit (aref digits i)))
-        (when (= digit 1)
-          (setf u-next (div2mod (+ (* p u-next) v-next) n)
-                v-next (div2mod (+ (* d u-next) (* p v-next)) n)))))))
-

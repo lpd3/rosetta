@@ -1,12 +1,17 @@
 ;;;; package.lisp
+
+(defpackage #:ros-conditions
+  (:use :cl)
+  (:export :type-error
+           :domain-error))
                 
 (defpackage #:ros-utils
   #+ecl (:shadow :rationalize)
   (:use :cl :iterate)
   (:import-from :alexandria
-     :with-gensyms)
+   :with-gensyms)
   (:import-from :serapeum
-     :batches)
+   :batches)
   (:export
    :printout->string
    :broadcast-printout
@@ -15,7 +20,7 @@
    :rationalize))
 
 (defpackage #:prime-utils
-  (:use :cl)
+  (:use :cl :ros-conditions)
   (:import-from :alexandria
 		:emptyp
 		:last-elt)

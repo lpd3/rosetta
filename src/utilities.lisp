@@ -54,7 +54,7 @@
  mbind multiple-value-bind
  dbind destructuring-bind)
 
-(defun rationalize (x)
+#+ecl (defun rationalize (x)
   "Given a real number, return
   a rational number whose 
   value is identical to the 
@@ -98,8 +98,3 @@
                 (when point-seen
                   (setf divider
                     (* divider 10))))))))))
-           
-                                 
-       
-
-

@@ -1,0 +1,65 @@
+Dependencies
+
+*small-prime-limit* nil
+init-small-primes (*small-primes-limit*)
+*small-primes* (init-small-primes)
+*largest-small-prime* (*small-primes*)
+
+*baillie-psw-limit* nil
+square nil
+
+
+primep
+|
+|-- *small-primes*
+|    |
+|    |-- init-small-primes
+|        |
+|        |-- *small-primes-limit*
+|                              
+|-- *baillie-psw-limit*         
+|
+|-- baillie-psw
+    |
+    |-- miller-rabin
+    |   |
+    |   |-- find-miller-rabin-d-s
+    |   |
+    |   |-- modular-exponentiation
+    |
+    |-- lucas-d-chooser
+    |   |
+    |   |-- jacobi
+    |   |
+    |   |-- peefect-square-p
+    !
+    |-- lucas
+        |
+        |-- u-v-subscript
+            |
+            |-- binary-expansion
+            |
+            |-- div2mod
+
+useful deps
+
+modular-exponentiation
+jacobi
+perfect-square-p
+binary-expansion
+
+helpers
+
+*small-primes*
+find-miller-rabin-d-s
+lucas-d-chooser
+div2mod
+u-v-subscript
+
+miller-rabin
+
+lucas
+
+baillie-psw
+
+primep
