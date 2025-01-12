@@ -56,7 +56,7 @@ find-miller-rabin-d-s ok
 lucas-d-chooser ok
 div2mod ok      
 
-miller-rabin
+miller-rabin ok
 
 lucas (includes u-v-subscript)
 

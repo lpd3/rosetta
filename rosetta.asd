@@ -21,13 +21,13 @@
                (:file "src/rc-004")
                (:file "src/rc-005")
                (:file "src/rc-006"))
-  :in-order-to ((test-op (test-op "rosetta/test"))))
+  :in-order-to ((test-op (test-op "rosetta/tests"))))
 
-(defsystem "rosetta/test"
+(defsystem "rosetta/tests"
   :depends-on ("rosetta" "parachute" "alexandria" "serapeum")
   :serial t
-  :components ((:file "test/packages")
-               (:file "test/prime-utils-test"))
+  :components ((:file "tests/packages")
+               (:file "tests/prime-utils-test"))
   :perform (test-op (o s)
                     (uiop:symbol-call :parachute '#:test
                       (uiop:find-symbol* '#:prime-utils-test-suite :prime-utils-test))))

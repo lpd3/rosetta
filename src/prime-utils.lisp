@@ -14,6 +14,9 @@
       "The largest prime in the *small-primes* array will be 
        the largest prime number less than this integer.")
 
+    (defparameter *small-primes*
+      nil
+      "Vector that holds the prime numbers less than *small-primes-limit*")
     (defun init-small-primes (&optional (limit *small-primes-limit*))
       "Initializes the *small-primes* parameter."
       (let ((sieve (make-array (1+ limit) :element-type 'boolean :initial-element t)))
@@ -36,10 +39,7 @@
 	    (when (aref sieve sieve-index)
 	      (vector-push sieve-index primes)))
           primes)))
-
-    (defparameter *small-primes*
-      (init-small-primes)
-      "Vector that holds the prime numbers less than *small-primes-limit*")))
+    (setf *small-primes* (init-small-primes))))
 
 (defparameter *largest-small-prime*
   (last-elt *small-primes*))
@@ -55,6 +55,12 @@
 
 (defun square (x)
   "The square of x"
+  (unless (numberp x)
+    (error 'type-error*
+      :argument x
+      :type (type-of x)
+      :expected-type 'number
+      :location 'square))
   (* x x))
 
 (defun primep (n)
@@ -128,14 +134,14 @@ the false positives produced are disjoint sets of numbers."
 	  
 (defun miller-rabin (n &optional (base 2))
   "https://en.m.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
-  Miller-Rabin probable-prime test. In addition to N, the number we 
+  Miller-Rabin probable-prime test. In addition to N, the positive odd integer we 
   are checking (which should already be tested against small primes,
   and should be > 3), takes an optional BASE argument. This defaults
   to 2, which is the correct base when this test is run as part of
   a Baillie-PSW test. Otherwise, the test should be run several times,
   with different BASEs chosen for each run such that, for each BASE,
   1 < BASE < N-1. Returns a Boolean. A nil result means that N is
-  provably composite. A t means N is probably prime, with the 
+  demonstrably composite. A t means N is probably prime, with the 
   probability of being composite decreasing exponentially in 
   proportion to the number of test runs."
   (unless (and (oddp n)
@@ -155,13 +161,14 @@ the false positives produced are disjoint sets of numbers."
         (find-miller-rabin-d-s n)
    ;; The Miller-Rabin algorithm
     (do* ((i 0 (1+ i))
-          (x (modular-exponentiation base d n) y)
-          (y #1=(modular-exponentiation x 2 n) #1#))
+          (x (modular-exponentiation base d n)))
          ;; If the final y is 1, then n is probably prime. Otherwise, n is demonstrably composite.
-         ((= i s) (= y 1)) 
-      (when (and (= y 1) (/= x 1) (/= x (1- n)))
-        ;; y is a non-trivial square root of 1 modulo n. n is composite.
-        (return-from miller-rabin nil)))))
+         ((= i s) (= x 1))
+      (let ((y (modular-exponentiation x 2 n)))
+        (when (and (= y 1) (/= x 1) (/= x (1- n)))
+          ;; y is a non-trivial square root of 1 modulo n. n is composite.
+          (return-from miller-rabin nil))
+        (setf x y)))))
 
 (defun find-miller-rabin-d-s (n)
   "Helper function for Miller-Rabin"
@@ -215,7 +222,7 @@ the false positives produced are disjoint sets of numbers."
     ((zerop n) 0)
     ((= n 1) 1)
     ((zerop e) 1)
-    ((= e 1) n)
+    ((= e 1) (mod n m))
     (t
      (do ((base (mod n m))
 	  (result 1)
@@ -247,8 +254,8 @@ the false positives produced are disjoint sets of numbers."
                  (- (+ d 2))
                  (- (- d 2))))
         (j #1=(jacobi d n) #1#))
-       ((j /= 1) (ecase j
-                   (0 (values d nil))
+       ((/= j 1) (ecase j
+                   (0 (values 0 nil))
                    (-1 (values d t))))
     (when (= d -15)
       (when (perfect-square-p n)
@@ -266,7 +273,7 @@ the false positives produced are disjoint sets of numbers."
       :expected-type 'integer))
   (unless (integerp k)
     (error 'type-error*
-      :argumument k
+      :argument k
       :type (type-of k)
       :location "JACOBI: k"
       :expected-type 'integer))
@@ -303,14 +310,14 @@ the false positives produced are disjoint sets of numbers."
               (rationalize x)
               x)))
     (cond
-      ((not (integerp x))
+      ((not (integerp coerced-x))
        nil)
-      ((minusp x)
+      ((minusp coerced-x)
        nil)
-      ((zerop x)
+      ((zerop coerced-x)
        t)
       (t
-       (= (sqrt x) (isqrt x)7)))))
+       (= (sqrt coerced-x) (isqrt coerced-x))))))
 
 (defun lucas (n d p)
   "Lucas Probable Prime Test. Takes 3 args: 
@@ -349,12 +356,13 @@ the false positives produced are disjoint sets of numbers."
       (mod (ash (+ x n) -1) n)
       (mod (ash x -1) n)))
 
-(defun binary-expansion (n)
+(defun binary-expansion (n &optional little-endian-p)
   "Given a non-negative 
-decimal integer n, return
-an adjustable vector containing
-the big-endian bits of the 
-binary equivalent of n"
+decimal integer N, return
+an adjustable vector containing bits of the 
+binary equivalent of n. Takes an optional Boolean arg
+LITTLE-ENDIAN-P. If true, the result will be in little-endian
+order. If nil (the default), the result will be in big-endian order."
   (unless (integerp n)
     (error 'type-error*
       :argument n
@@ -366,18 +374,18 @@ binary equivalent of n"
       :argument n
       :location 'binary-expansion
       :domain "n >= 0"))
-  (let ((result
-	  (make-array 100
-		      :element-type fixnum
-		      :adjustable t
-		      :fill-pointer 0)))
-    (cond
-      ((zerop n)
-       (vector-push-extend 0 result)
-       result)
-      (t
-       (do ((remainder n (ash n -1)))
-	   ((zerop remainder) result)
-	 (if (oddp remainder)
-	     (vector-push-extend 1 result)
-	     (vector-push-extend 0 result)))))))
+  (if (< n 2)
+      (make-array 1
+        :element-type 'fixnum
+        :initial-element n)
+      (do ((remainder n (ash remainder -1))
+           (work-list nil))
+          ((zerop remainder)
+           (coerce
+            (if little-endian-p
+                (nreverse work-list)
+                work-list)
+            '(vector fixnum *)))
+        (if (oddp remainder)
+            (push 1 work-list)
+            (push 0 work-list)))))

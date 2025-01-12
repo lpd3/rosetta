@@ -2,7 +2,7 @@
 
 (defpackage #:ros-conditions
   (:use :cl)
-  (:export :type-error
+  (:export :type-error*
            :domain-error))
                 
 (defpackage #:ros-utils
