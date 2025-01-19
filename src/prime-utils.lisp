@@ -4,6 +4,7 @@
 
 (in-package #:prime-utils)
 
+;;; Primality testing of individual numbers: the Baillie-PSW test
 
 (eval-when (:compile-toplevel
             :load-toplevel
@@ -32,7 +33,7 @@
 	        ((> multiple *small-primes-limit*))
 	      (setf (aref sieve multiple) nil))))
         (let ((primes (make-array (1+ limit)
-			          :element-type 'fixnum
+			          :element-type 'integer
 			          :adjustable t
 			          :fill-pointer 0)))
           (dotimes (sieve-index (1+ limit))
@@ -76,8 +77,15 @@
       :location 'primep
       :expected-type 'number))
   (when (complexp n)
-    ; Imaginary numbers and complex numbers that are not real integers are never prime
-    (return-from primep (values nil t)))
+    ;; Complex numbers that are not real are never prime.
+    ;; If the imaginary part were integer 0, Lisp would have
+    ;; already silently coerced the number to a real. This
+    ;; does not happen when the imaginary part is float 0.0
+    ;; (to preserve the numeric type on underflow).
+    ;; So we need this test.
+    (if (zerop (imagpart n))
+        (setq n (realpart n))
+        (return-from primep (values nil t))))
   ; Eases dealing with float inputs
   (when (floatp n)
     (setq n (rationalize n)))
@@ -124,13 +132,10 @@ the false positives produced are disjoint sets of numbers."
   (unless (miller-rabin n)
     (return-from baillie-psw nil))
   
-  (multiple-value-bind
-        (d n-is-still-probable-prime)
-        (lucas-d-chooser n)
-    (unless n-is-still-probable-prime
-      (return-from baillie-psw nil))
-
-    (lucas n d 1)))
+  (let ((d (lucas-d-chooser n)))
+    (if d
+        (lucas n d 1)
+        nil)))
 	  
 (defun miller-rabin (n &optional (base 2))
   "https://en.m.wikipedia.org/wiki/Miller%E2%80%93Rabin_primality_test
@@ -181,43 +186,43 @@ the false positives produced are disjoint sets of numbers."
    return N^E mod M."
   (unless (integerp n)
     (error 'type-error*
-      :argument n
-      :type (type-of n)
-      :location "MODULAR-EXPONENTIATION: n"
-      :expected-type 'integer))
+           :argument n
+           :type (type-of n)
+           :location "MODULAR-EXPONENTIATION: n"
+           :expected-type 'integer))
   (when (minusp n)
     (error 'domain-error
-      :argument n
-      :location "MODULAR-EXPONENTIATION: n"
-      :domain "n >= 0"))
+           :argument n
+           :location "MODULAR-EXPONENTIATION: n"
+           :domain "n >= 0"))
   (unless (integerp e)
     (error 'type-error*
-      :argument e
-      :type (type-of e)
-      :location "MODULAR-EXPONENTIARION: e"
-      :expected-type 'integer))
+           :argument e
+           :type (type-of e)
+           :location "MODULAR-EXPONENTIARION: e"
+           :expected-type 'integer))
   (when (minusp e)
     (error 'domain-error
-      :argument e
-      :location "MODULAR-EXPONENTIATION: e"
-      :domain "e >= 0"))
+           :argument e
+           :location "MODULAR-EXPONENTIATION: e"
+           :domain "e >= 0"))
   (unless (integerp m)
     (error 'type-error*
-      :argument m
-      :type (type-of m)
-      :location "MODULAR-EXPONENTIATION: m"
-      :expected-type 'integer))
+           :argument m
+           :type (type-of m)
+           :location "MODULAR-EXPONENTIATION: m"
+           :expected-type 'integer))
   (unless (plusp m)
     (error 'domain-error
-      :argument m
-      :location "MODULAR-EXPONENTIATION: m"
-      :domain "m > 1"))
+           :argument m
+           :location "MODULAR-EXPONENTIATION: m"
+           :domain "m > 1"))
   (cond
     ((and (zerop n) (zerop e))
      (error 'domain-error
-       :argument '(0 0)
-       :location "MODULAR-EXPONENTIATION: n & e"
-       :domain "n and e may not both be 0."))
+            :argument '(0 0)
+            :location "MODULAR-EXPONENTIATION: n & e"
+            :domain "n and e may not both be 0."))
     ((= m 1) 0)
     ((zerop n) 0)
     ((= n 1) 1)
@@ -234,32 +239,40 @@ the false positives produced are disjoint sets of numbers."
 	     base (mod (* base base) m))))))
 
 (defun lucas-d-chooser (n)
-  "Helper function for Baillie-PSW. Given odd positive N, searches
-   for an odd integer D such that the Jacobi symbol d/N /= 1. 
-   If N is not a perfect square, the algorithm finds such a d in
-   1.76 iterations on average. However, if N is a perfect square, 
-   the algorithm would never terminate. After a few iterations, 
-   N is checked to see if it is a square. This is done now instead
-   of earlier because checking for a perfect square is slightly 
-   more expensive then a few runs of this algorithm. Returns two
-   values. If the Jacobi function successfully returns 0 or 1, 
-   d is returned as the first value. The second boolean value
-   indicates whether or not N is still a candidate for prime testing.
-   If the Jacobi symbol is 0, then d and N are not coprime and 
-   N is composite. In that case, the second value is nil. If
-   N is a perfect square, 0 and nil are returned. If 
-   the Jacobi symbol is -1 (the only other possibility), 
-   then d and T are returned."
-  (do* ((d 5 (if (plusp d)
-                 (- (+ d 2))
-                 (- (- d 2))))
-        (j #1=(jacobi d n) #1#))
-       ((/= j 1) (ecase j
-                   (0 (values 0 nil))
-                   (-1 (values d t))))
-    (when (= d -15)
-      (when (perfect-square-p n)
-        (return-from lucas-d-chooser (values 0 nil))))))
+  "Helper function for Baillie-PSW. Given odd positive N, searches for
+   an integer d in the series 5, -7, 9, -11, ... such that the Jacobi
+   symbol d/N is not 1. If the symbol is 0, then we know that N is 
+   composite and NIL is returned. If the symbol is -1, we first 
+   check to make sure that (1 - d) / 4 shares no common factors with 
+   N. If they share common factors, NIL is returned. If they do not, 
+   then N is a candidate for further testing, and d is returned.
+
+   If N is a perfect square, the procedure used here could easily
+   lead to an infinite loop. Since a result in non-square N is 
+   usually found quickly (average 1.7 iterations), the loop 
+   pauses when d reaches -15. At that point, N is tested to see
+   if it is a perfect square. If so, NIL is immediately returned.
+   Otherwise, the search continues.
+
+   Checking for squares is delayed because the square check is 
+   more expensive then a few iterations of the search, and a Jacobi
+   symbol of 0 will be revealed early on. This that n not be 5 or 11, since
+   this chooser will return nil for both: in both cases, n is encountered in the
+   series, producing a Jacobi symbol of 0. No other odd prime in *small-primes*
+   exibits this behavior. Therefore, we return a pre-selected d in these cases."
+  (case n
+    (5 -7)
+    (11 13)
+    (otherwise
+     (do* ((d 5 (if (plusp d)
+                    (- (+ d 2))
+                    (- (- d 2))))
+           (j #1=(jacobi d n) #1#))
+          ((/= j 1) (unless (zerop j)
+                      d))
+       (when (= d -15)
+         (when (perfect-square-p n)
+           (return-from lucas-d-chooser nil)))))))
 
 (defun jacobi (m k)
   "Given M (integer) and K (positive odd integer),
@@ -267,21 +280,21 @@ the false positives produced are disjoint sets of numbers."
   -1, 0 or 1."
   (unless (integerp m)
     (error 'type-error*
-      :argument m
-      :type (type-of m)
-      :location "JACOBI: m"
-      :expected-type 'integer))
+           :argument m
+           :type (type-of m)
+           :location "JACOBI: m"
+           :expected-type 'integer))
   (unless (integerp k)
     (error 'type-error*
-      :argument k
-      :type (type-of k)
-      :location "JACOBI: k"
-      :expected-type 'integer))
+           :argument k
+           :type (type-of k)
+           :location "JACOBI: k"
+           :expected-type 'integer))
   (unless (and (oddp k) (plusp k))
     (error 'domain-error
-      :argument k
-      :location "JACOBI: k"
-      :domain "k > 0, k mod 2 = 1"))
+           :argument k
+           :location "JACOBI: k"
+           :domain "k > 0, k mod 2 = 1"))
   (do ((next-m (mod m k) (mod next-m next-k))
        (next-k k)
        (possible-j 1))
@@ -321,7 +334,7 @@ the false positives produced are disjoint sets of numbers."
 
 (defun lucas (n d p)
   "Lucas Probable Prime Test. Takes 3 args: 
-  N (the number we wish to check for primality, odd integer greater than 1),
+  N (the number we wish to check for primality, odd integer greater than 101),
   D (a math parameter: odd integer) and p (math parameter: integer).
   Returns T if n is probably prime and NIL if N is 
   demonstrably composite. Performs no value checking.
@@ -329,25 +342,62 @@ the false positives produced are disjoint sets of numbers."
   otherwise, the test should be complimented by initial
   value checks, tests for divisibility by small primes, 
   and this test should be run multiple times with different
-  parameters."
+  parameters.
 
-  (zerop (u-v-subscript n p d)))
+  When this test is run as part of a Baillie-PSW test, then
+  d will be an odd integer such that jacobi (d/n) = -1, and
+  p always will be 1."
 
-(defun u-v-subscript (n p d)
+  (unless (integerp n)
+    (error 'type-error*
+           :argument n
+           :type (type-of n)
+           :expected-type 'integer
+           :location "LUCAS: n"))
+  
+  (unless (and (> n 1) (oddp n))
+    (error 'domain-error
+           :argument n
+           :domain "n > 1 and n is odd."
+           :location "LUCAS: n"))
+  (unless (integerp p)
+    (error 'type-error*
+           :argument p
+           :type (type-of p)
+           :expected-type 'integer
+           :location "LUCAS: d"))
+  (unless (plusp p)
+    (error 'domain-error
+           :argument p
+           :domain "p: positive integer"
+           :location "LUCAS: p"))
+  (unless (integerp d)
+    (error 'type-error*
+           :argument d
+           :type (type-of d)
+           :expected-type 'integer
+           :location "LUCAS: d"))
+  (zerop (u-v-subscript n d p)))
+
+(defun u-v-subscript (n d p)
   "Helper function for the Lucas test. Takes 3 integer args:
    N, P, D. N is the number we are checking for primality.
-   The others are math parameters."
-  (let ((digits (binary-expansion (1- n)))
-        (u 1)
-        (v p))
-    (dotimes (i (1- (length digits)) u)
-      (let* ((index (1+ i))
-             (digit (aref digits index)))
-        (setf u (mod (* u v) n)
+   The others are math parameters. When this test is run as
+   part of the Baillie-PSW test, d will be an odd integer 
+   such that jacobi (d/n) = -1. In a Baillie-PSW test, p
+   is always 1."
+   (let ((u 1)
+         (v p)
+         (digits (binary-expansion (1+ n))))
+     (do ((i 1 (1+ i)))
+         ((= i (length digits)) u)
+       (psetq u (mod (* u v) n)
               v (div2mod (+ (* v v) (* d u u)) n))
-        (unless (zerop digit)
-          (setf u (div2mod (+ (* p u) v) n)
-                v (div2mod (+ (* d u) (* p v)) n)))))))
+       (let ((digit (aref digits i)))
+         (when (= digit 1)
+           (psetq u (div2mod (+ (* p u) v) n)
+                  v (div2mod (+ (* d u) (* p v)) n)))))))
+
 
 (defun div2mod (x n)
   "Helper function for u-v-subscript. Both args, X and N are
@@ -389,3 +439,86 @@ order. If nil (the default), the result will be in big-endian order."
         (if (oddp remainder)
             (push 1 work-list)
             (push 0 work-list)))))
+
+;;; General Utilities for prime numbers
+
+(defun primes-below-x (x)
+  "Given x (a real number), return an array containing all the prime numbers less than x.
+  Coerces x to an integer. If the integer is less than 2, an empty array is returned.
+  Does not limit the size of the array created. You have been warned."
+  (unless (realp x)
+    (error 'type-error*
+           :argument x
+           :type (type-of x)
+           :expected-type "REAL NUMBER"
+           :location 'primes-below-x))
+  (let ((n (floor x)))
+    (cond
+      ((< n 2)
+       (make-array 1
+         :element-type 'integer
+         :adjustable t
+         :fill-pointer 0))
+      ((< n *largest-small-prime*)
+       (let ((i (position-if #'(lambda (p) (>= p n)) *small-primes*)))
+         (alexandria:copy-array
+          (make-array i
+            :element-type 'integer
+            :displaced-to *small-primes*)
+          :adjustable t)))
+      ((< n *small-primes-limit*)
+       (alexandria:copy-array *small-primes* :adjustable t))
+      (t
+       (let ((sieve (sieve-to% n))
+             (primes (make-array 200
+                       :element-type 'integer
+                       :adjustable t
+                       :fill-pointer 0)))
+         (loop for i from 0
+               for bool across sieve
+               when bool
+                 do
+               (vector-push-extend i primes)
+               finally
+               (return primes)))))))
+
+(defun sieve-to% (n)
+  "Helper function for primes-below-x"
+  (assert (typep n '(and integer (satisfies plusp) (not (member 0 1)))))
+  (let ((sieve ; each number represented by its index. We start off assuming all are prime.
+          (make-array n
+                      :element-type 'boolean
+                      :initial-element t)))
+    ; 0 and 1 are not prime
+    (setf (aref sieve 0) nil
+          (aref sieve 1) nil)
+    ; 2 is prime. Leave it alone. Sieve out multiples of 2
+    (do ((2-multiple 4 (+ 2-multiple 2)))
+        ((>= 2-multiple n))
+      (setf (aref sieve 2-multiple) nil))
+    ; All other primes are odd. Starting with 3, we consider each odd index. If the value is nil,
+    ; we have already established that that index is composite. Move on.
+    ; If the value is t, the index is prime. Sieve out its multiples.
+    ; We need to look for primes only up to the floor of the sqrt of n.
+    (do ((prime-limit (isqrt n))
+         (possible-prime 3 (+ possible-prime 2)))
+        ((> possible-prime prime-limit) sieve)
+      (when (aref sieve possible-prime)
+        ; Starting with the square of possible-prime (possible-prime is now definitely prime) mark all multiples nil.
+        (do* ((prime possible-prime)
+              (multiple (* prime prime) (+ multiple prime)))
+             ((>= multiple n))
+          (setf (aref sieve multiple) nil))))))
+
+(defun primes-in-range (start stop)
+  "Given two non-negative integers, START and
+   STOP, return an array of prime numbers in the
+   from START below STOP. If STOP >= START, an 
+   empty array is returned. When sensible arguments
+   are provided, the algorithm chosen to accomplish this
+   feat depends on the arguments. Algorithms include
+   1. Creating a slice of the already-existing array
+   *small-primes* 2. traditional sieve 3. segmented sieve
+   4. Testing sequentially with a wheel. Does not limit the
+   size of the range. You have been warned."
+  (error 'uiop:not-implemented-error))

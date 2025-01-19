@@ -32,7 +32,8 @@
 	   :binary-expansion
            :square
            :jacobi
-           :perfect-square-p))
+           :perfect-square-p
+           :primes-below-x))
 
 (defpackage #:ros-01
   #+ecl (:shadowing-import-from :ros-utils

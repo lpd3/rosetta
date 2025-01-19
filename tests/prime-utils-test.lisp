@@ -477,7 +477,7 @@
 
 (define-test primes-below-x-errors
   :parent primes-below-x-suite
-  (fail (primes-below-x "one hundred") type-error* "x: one hundred (string)")
+  (fail (primes-below-x "onee hundred") type-error* "x: one hundred (string)")
   (fail (primes-below-x #C(10 10)) type-error* "x: #C(10 10) (the complex number 10+10i)"))
 
 (define-test primes-below-x-outliers
@@ -512,7 +512,7 @@
 
 (define-test primes-below-x-big
   :parent primes-below-x-suite
-  :depends-on '(primes-below-x-small)
+  :depends-on (primes-below-x-small)
   (do ((x *small-primes-limit* (* x 5))
        (primes nil nil))
       ((> x 5000000))
@@ -598,8 +598,6 @@
             9973)))
     (is #'equalp primes (primes-below-x 10000) "for x = 10000 did not match the constant vector of primes below 10000")))
 
-
-
 (define-test baillie-psw-suite
   :parent prime-utils-test-suite
   :depends-on (miller-rabin-suite
@@ -641,15 +639,15 @@
            '(1373653 1530787 1987021 2284453 3116107 5173601 6787327 11541307 13694761
              15978007 16070429 16879501 25326001 27509653 27664033 28527049 54029741
              61832377 66096253 74927161 80375707 101649241))
-    (false (baillie-psq spsp2-3) "~D a strong pseudoprime to bases 2 and 3" spsp2-3)))
+    (false (baillie-psw spsp2-3) "~D a strong pseudoprime to bases 2 and 3" spsp2-3)))
 
 ;; small perfect squares
 
 (define-test baillie-psw-vs-small-squares
   :parent baillie-psw-suite
-  (do* ((i 1001 (+ i 1))
+  (do* ((i 33 (+ i 2)) ; 33: ceiling of sqrt of 1001
         (ss (* i i) (* i i)))
-       ((= i 10000))
+       ((> i 10000))
     (false (baillie-psw ss) "~D (~D^2)" ss i)))
 
 ;; Large perfect squares
@@ -657,7 +655,7 @@
 (define-test baillie-psw-vs-large-squares
   :parent baillie-psw-suite
   (do* ((i 0 (1+ i))
-        (n (expt 10 60) (1+ n))
+        (n (expt 11 60) (+ 2 n))
         (ls (* n n) (* n n)))
        ((= i 2000))
     (false (baillie-psw ls) "~D (~D^2)" ls n)))
@@ -668,3 +666,197 @@
         when (> prime *small-primes-limit*)
           do
         (true (baillie-psw prime) "n: ~D is prime but baillie-psw said no." prime)))
+
+(define-test baillie-psw-identifies-larger-primes
+  :parent baillie-psw-suite
+  (let ((primes1 '(1234567891 1234567907 1234567913 1234567927 1234567949 1234567967 1234567981))
+        (range1 '(1234567891 1234567999))
+        (primes2 '(56789012359 56789012389 56789012393 56789012417 56789012471))
+        (range2 '(56789012345 56789012499))
+        (primes3 '(777777777841 777777777869 777777777877 777777777901 777777777911))
+        (range3 '(777777777777 777777777913))
+        (primes4 '(91234567890123456907 91234567890123456937 91234567890123457027))
+        (range4 '(91234567890123456789 91234567890123457029)))
+    (let ((primelists (list primes1 primes2 primes3 primes4))
+          (ranges (list range1 range2 range3 range4)))
+      (do ((rest-ranges ranges (rest rest-ranges))
+           (rest-primelists primelists (rest rest-primelists)))
+          ((null rest-ranges))
+        (let ((current-range (first rest-ranges))
+              (current-primelist (first rest-primelists)))
+          (destructuring-bind
+              (start end)
+              current-range
+            (do ((n start (+ n 2)))
+                ((>= n end))
+              (if (member n current-primelist)
+                  (true (baillie-psw n) "n: ~D is prime" n)
+                  (false (baillie-psw n) "n: ~D is composite" n)))))))))
+
+(defun zero-is-false (x)
+  "Given any kind of object, returns a generalized Lisp
+   boolean equivalent to the object's boolean value in C.
+   In C, the values 0 and 0.0 are falsy and all other 
+   values and objects are truthy. If x is a zero, returns 
+   NIL, otherwise returns T."
+  ;; equalp is the laxest general equality operator.
+  ;; When given two or more numbers, it compares
+  ;; them based on 'visual' equality, without regard to type.
+  ;; Thus 0, 0.0, and #C(0.0 0.0) (i.e. 0.0+0.0i)  are all
+  ;; equalp. Note also that 0/1 and #C(0 0) are automatically coerced to 0
+  ;; and both #C(0 0.0) and #C(0.0 0) are automatically coerced to #C(0.0 0.0)
+  (if (equalp x 0)
+      nil
+      t))
+
+(define-test primep-suite
+  :parent prime-utils-test-suite
+  :depends-on (baillie-psw-suite))
+
+(define-test primep-errors-and-outliers
+  :parent primep-suite
+  (fail (primep "balogna sandwich") type-error* "n: bologna sandwich [string]")
+  (fail (primep #\7) type-error* "n: #\7 [character]")
+  (true (primep 11.0) "n: 11.0 is prime")
+  (false (primep 11.1) "n: 11.1 is not prime")
+  ;; When a ratio type (i.e. fraction) is integral, Lisp silently converts it
+  ;; to the integer type
+  (false (primep 35/36) "n: 35/36 is not prime") 
+  (false (primep -13) "n: -13 is not prime")
+  ;; In numbers of the complex type, when both parts are of the integer
+  ;; type and the imaginary part is 0, Lisp silently converts the numbers
+  ;; to the integer type.
+  (true (primep #C(11.0 0.0)) "n: 11.0+0.0i is prime") 
+  (false (primep #C(11 5)) "n 11+5i is not prime."))
+
+(define-test primep-small-numbers
+  :parent primep-suite
+  (dotimes (n (1+ *small-primes-limit*))
+    (let ((in-small-primes-p (sorted-find n *small-primes*))
+          (primep-prime-p (primep n)))
+      (true
+       (or
+        (and in-small-primes-p primep-prime-p)
+        (and (not in-small-primes-p) (not primep-prime-p)))
+       "n: ~D; found in *small-primes*: ~A; (primep n): ~A" n in-small-primes-p primep-prime-p))))
+
+(defun sorted-find (x seq &key (test #'eql) (stop #'>))
+  "Similar to 'find', but assumes that items in the sequence are
+   sorted. Takes X (object) SEQ (sequence) and kwargs TEST (defaults to
+   #'EQL) and STOP (defaults to #'>). Returns two values Sequentially compares elements in SEQ
+   to X. If (TEST item X) returns non-nil, returns item and T. If (STOP item X)
+   returns T, or if SEQ is exhausted, returns NIL and NIL. The second return value is useful to distinguish
+   between success (when the returned item is itself NIL) and failure (in all cases). "
+  (dotimes (i (length seq) (values nil nil))
+    (let ((item (elt seq i)))
+      (when (funcall test item x)
+        (return (values item t)))
+      (when (funcall stop item x)
+        (return (values nil nil))))))
+
+(defparameter *pln-limit*
+  (truncate 5e6)
+  "PRIMEP-LARGER-NUMBERS will test random positive integers
+  up through this number.")
+
+(defparameter *pln-runs*
+  10000
+  "Number of random integers that 
+  PRIMEP-LARGER-NUMBERS tests.")
+
+(define-test primep-larger-numbers
+  :parent primep-suite
+  (let* ((primes (primes-below-x (1+ *pln-limit*))))
+    (dotimes (i *pln-runs*)
+      (let ((n (random (1+ *pln-limit*))))
+        (if (binary-search n primes #'= #'<)
+            (true (primep n) "n: ~D in primes list" n)
+            (false (primep n) "n: ~D not in primes list" n))))))
+
+(defun binary-search (item seq test comp &key (key #'identity))
+  "Binary search algorith  for any kind of sequence. Searches the
+  a sequence, which must be sorted, for an item.
+  
+  Required args:
+
+  ITEM (type t): the item that we are looking for.
+  SEQ (proper sequence) the sorted seqence in which the
+    search is performed.
+  TEST (function of 2 args that returns a value): Function
+    that determines whether or not the item and an element
+    are equal or otherwise equivalent.
+  COMP (function of 2 args that returns a value): Function
+    that compares the items. When this function returns 
+    non-nil, then the first arg should be found farther to
+    the left in the sequence then the second arg.
+
+  Keyword (optional) arg:
+  
+  KEY: A function of one arg that extracts a value from
+    a sequence element for comparison with ITEM. Defaults
+    to #'identity.
+
+  Finds the midpoint of  SEQ, and KEY to extract a value from
+  SEQ at the midpint. Invokes TEST on ITEM and the value
+  extracted. If the result is non-nil, the extracted value is returned 
+  and the algorithm ends. Otherwise, invokes COMP on item and value.
+  If the result is non-nil, the elements to the left of the midpoint
+  are considered (and the items to the right are never considered). 
+  Finds the midpoint of the items to the left and the algorithm 
+  repeats. If COMP returns NIL, then the items to the right of the
+  midpoint are the next focus (and those to the left will never be 
+  considered). Continues until either the element is found, or 
+  the endpoints of the region under consideration are adjacent in 
+  the sequence, at which point NIL is returned.
+
+  If the sequence is not in some kind of order, or the COMP 
+  function is not correct for the task, the result returned will 
+  be useless."
+  (when (not (typep seq 'alexandria:proper-sequence))
+    (error 'type-error*
+           :argument seq
+           :type (type-of seq)
+           :expected-type 'proper-sequence
+           :location "BINARY-SEARCH: seq"))
+  (when (not (functionp test))
+    (error 'type-error*
+           :argument test
+           :type (type-of test)
+           :expected-type "FUNCTION of 2 args"
+           :location "BINARY-SEARCH: test"))
+  (when (not (functionp comp))
+    (error 'type-error*
+           :argument comp
+           :type (type-of comp)
+           :expected-type "FUNCTION of 2 args"
+           :location "BINARY-SEARCH: comp"))
+  (when (not (functionp key))
+    (error 'type-error*
+           :argument key
+           :type (type-of key)
+           :expected-type "FUNCTION of one arg"
+           :location "BINARY-SEARCH: key"))
+  (when (zerop (length seq))
+    (return-from binary-search nil))
+  (do* ((left 0)
+        (right (1- (length seq)))
+        (mid (floor (+ left right) 2)))
+       ((> left right)
+        ;; No more logical places to search. Item must not match
+        ;; any value in seq. Return NIL.
+        nil)
+    (let ((value (funcall key (elt seq mid))))
+      (cond
+        ((funcall test item value)
+         ;; item matches value. Return value
+         (return-from binary-search value))
+        ((funcall comp item value)
+         ;; item, if in seq, must be to the left of value.
+         ;; move right to mid - 1 and recalculate mid.
+         (setf right (1- mid)
+               mid (floor (+ left right) 2)))
+        (t
+         ;; item, if in seq, must be to the right of value.
+         ;; set left to mid + 1 and recalculate mid
+         (setf left (1+ mid)
+               mid (floor (+ left right) 2)))))))
