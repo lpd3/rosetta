@@ -487,28 +487,63 @@ order. If nil (the default), the result will be in big-endian order."
   (assert (typep n '(and integer (satisfies plusp) (not (member 0 1)))))
   (let ((sieve ; each number represented by its index. We start off assuming all are prime.
           (make-array n
-                      :element-type 'boolean
-                      :initial-element t)))
+                      :element-type 'bit
+                      :initial-element 1)))
     ; 0 and 1 are not prime
-    (setf (aref sieve 0) nil
-          (aref sieve 1) nil)
+    (setf (aref sieve 0) 0
+          (aref sieve 1) 0)
     ; 2 is prime. Leave it alone. Sieve out multiples of 2
     (do ((2-multiple 4 (+ 2-multiple 2)))
         ((>= 2-multiple n))
-      (setf (aref sieve 2-multiple) nil))
+      (setf (bit sieve 2-multiple) 0))
     ; All other primes are odd. Starting with 3, we consider each odd index. If the value is nil,
     ; we have already established that that index is composite. Move on.
     ; If the value is t, the index is prime. Sieve out its multiples.
     ; We need to look for primes only up to the floor of the sqrt of n.
-    (do ((prime-limit (isqrt n))
+    (do ((prime-max (isqrt n))
          (possible-prime 3 (+ possible-prime 2)))
-        ((> possible-prime prime-limit) sieve)
-      (when (aref sieve possible-prime)
+        ((> possible-prime prime-max) sieve)
+      (when (plusp (bit sieve probable-prime))
         ; Starting with the square of possible-prime (possible-prime is now definitely prime) mark all multiples nil.
         (do* ((prime possible-prime)
               (multiple (* prime prime) (+ multiple prime)))
-             ((>= multiple n))
-          (setf (aref sieve multiple) nil))))))
+             ((> multiple n))
+          (setf (bit sieve multiple) 0)))
+      (let ((primes (make-array (ceiling n (log n))
+                                 :element-type 'integer
+                                 :adjustable t)))
+        (dotimes (i (length sieve) primes)
+          (when (plusp (bit sieve i))
+            (vector-push-extend i primes)))))))
+
+(defparameter *sequential-search-low-ceiling*
+  64
+  "Calls to primes in range in which *small-primes-limit* <= STOP
+   and the range (STOP - START) < *sequential-search-lower-max* 
+   will employ sequential prime testing of individual integers.
+   Default: 32")
+
+(defparameter *plain-sieve-limit*
+  (expt 2 22)
+  "Calls to primes-in-range will use a simple
+   sieve of Erastothenes when range (STOP - START) > *sequential-search-lower-max*
+   and *small-primes-limit* <= STOP < *plain-sieve-limit*
+   It defaults to 2^22: 4,194,304.")
+
+(defparameter *segmented-sieve-limit*
+  (expt 2 44)
+  "Calls to primes-in-range with range (STOP - START) >= *sequential-sieve-lower-max*
+   and with *plain-sieve-max* <= STOP < *segmented-sieve-max* 
+   will employ a segmented sieve. When STOP >= *segmented-sieve-limit*, 
+   regardless of range, sequential prime testing is used instead.
+   Default is 2^44: 17,592,186,044,416.")
+
+(defparameter *soft-range-max*
+  (expt 2 22)
+  "When a call to primes-in-range is made with a range (STOP - START) > *soft-range-max*,
+   a correctable error will be signaled, permitting the user to proceed 
+   anyway upon careful reflection
+   Default: 2^22: 4,194,304")
 
 (defun primes-in-range (start stop)
   "Given two non-negative integers, START and
@@ -516,9 +551,202 @@ order. If nil (the default), the result will be in big-endian order."
    from START below STOP. If STOP >= START, an 
    empty array is returned. When sensible arguments
    are provided, the algorithm chosen to accomplish this
-   feat depends on the arguments. Algorithms include
-   1. Creating a slice of the already-existing array
-   *small-primes* 2. traditional sieve 3. segmented sieve
-   4. Testing sequentially with a wheel. Does not limit the
-   size of the range. You have been warned."
-  (error 'uiop:not-implemented-error))
+   feat depends on the arguments:
+
+   1. When a. the range is < 1 or b. the range is 1, START > 2 and START is even, return an empty vector.
+   2. When STOP is less than *small-primes-limit*, return a slice of *small-primes*
+   3. When STOP is less than *plain-sieve-limit*, truncate a standard sieve.
+   4. When range is less than *sequential-search-low-ceiling*, test for primes individually.
+   5. When STOP is less than *segmented-sieve-limit*, perform a segmented sieve.
+   6. Otherwise, test for primes individually
+
+   Signals a correctable error if range is greater than 5 million. 
+   The user can choose to proceed anyway." 
+  (unless (integerp start)
+    (error 'type-error*
+           :argument start
+           :type (type-of start)
+           :expected-type 'integer
+           :location "PRIMES-IN-RANGE: start"))
+  (when (minusp start)
+    (error 'domain-error
+           :argument start
+           :domain "0 <= start"
+           :location "PRIMES-IN-RANGE: start"))
+  (unless (integerp end)
+    (error 'type-error*
+           :argument stop
+           :type (type-of stop)
+           :expected-type 'integer
+           :location "PRIMES-IN-RANGE: stop"))
+  (when (minusp stop)
+    (error 'domain-error
+           :argument stop
+           :domain "0 <= stop"
+           :location "PRIMES-IN-RANGE: stop"))
+  (let ((range (- stop start)))
+    (when (> range *soft-range-max*)
+      (cerror "Proceed anyway with range ~D" range
+              'large-range-error :range range))
+    (cond
+      ;; when STOP <= START or
+      ;; STOP - START = 1 and START > 2 and START is even, there can be no primes. Return an empty
+      ;; array.
+      ((or (< range 1)
+           (and (= range 1)
+                (> start 2)
+                (evenp start)))
+       (make-array 1
+                   :element-type 'integer
+                   :adjustable t
+                   :fill-pointer 0))
+      ;; if stop <= *small-primes-limit*, return a slice of *small-primes*
+      ((< stop *small-primes-limit*)
+       (subseq *small-primes*
+               (position-if #'(lambda (elt) (>= elt start)) *small-primes*)
+               (1- (position-if #'(lambda (elt) (>= elt stop))))))
+      ;; if stop < *plain-sieve-limit*,, perform a standard sieve and drop and initial elements that are < start
+      ((< stop *plain-sieve-limit*)
+       (subseq (sieve-to% stop)
+               (position-if #'(lambda (elt) (>= elt start)))))
+      ;; if range < *sequential-search-lower-ceiling*, search odd numbers one by one.
+      ((< range *sequential-search-lower-ceiling)
+       (sequential-test-range% start stop))
+      ;; if start > sqrt(stop) and stop < *segmented-sieve-limit*,
+      ;; perform segmented sieve
+      ((and (> start (isqrt stop))
+            (< stop *segmented-sieve-limit*))
+       (modified-segmented-sieve% start stop))
+      ;; otherwise, perform individual prime testing
+      (t
+       (sequential-test-range% start stop)))))
+
+
+(defun sequential-test-range% (start stop)
+  "Helper function for PRIMES-IN-RANGE. Given 
+  integers START and STOP, returns an array of 
+  the prime numbers p,  START <= p < STOP. 
+
+  Assumes
+  1. Input error and outlier checking has already been performed.
+  2. STOP >= *plain-sieve-limit*
+  3. Either
+     a. The range (STOP - START) < *sequential-search-low-ceiling* 
+     Or
+     b. STOP >= *segmented-sieve-limit*
+
+     When the range < *sequential-search-low-ceiling* or START >= *segmented-sieve-limit*, 
+     the array is constructed by simply testing for 
+     primes sequentially in the array. Otherwise,
+     the odd numbers from *segmented-sieve-limit* to below STOP are checked
+     sequentially for primality and the primes added to
+     a sequential array. Then an array of primes to below *segmented-sieve-limit*
+     is constructed using a segmented sieve. This is then
+     concatenated to the sequential array and the concatenation
+     is returned."
+  (do* ((range (- stop start))
+        (sequential-start (if (or (< range *sequential-range-low-ceiling*)
+                                  (>= start *segmented-sieve-limit*))
+                              start
+                              *segmented-sieve-limit*))
+        (sequential-array (make-array (estimate-prime-array-size% sequential-start stop)
+                                      :element-type 'integer
+                                      :adjustable t
+                                      :fill-pointer 0))
+        (cur-prime (next-prime (1- sequential-start) (next-prime cur-prime))))
+       ((>= cur-prime stop) (if (or (< range *sequential-range-low-ceiling*)
+                                    (>= start *segmented-sieve-max*))
+                                sequential-array
+                                (concatenate 'vector (modified-segmented-sieve% start (1+ sequential-start) sequential-array))))
+    (vector-push-extend cur-prime sequential-array)))
+
+(defun estimate-prime-array-size% (start stop)
+  "Helper function. Given START and STOP, two integers, (very roughly) estimates the
+   number of prime numbers p where START <= p < STOP
+   Returns a positive integer. Performs minimal error checking."
+  (assert (and (integerp start) (integerp stop) (<= start stop) (>= stop 3))
+    ()
+    "Inappropriate arguments to ESTIMATE-PRIME-ARRAY-SIZE. START: ~A ~S; STOP: ~A ~S."
+    (type-of start) start (type-of stop) stop)
+  (let ((adjusted-start-minus-one (if (< start 3)
+                            2
+                            (- start 1))))
+    (let ((estimate (ceiling (- (/ stop (log stop))
+                                (/ adjusted-start-minus-one (log adjusted-start-minus-one))))))
+      (max estimate 1))))
+
+(defun next-prime (x)
+  "Given a real number x, return 
+   the smallest prime number p, p > x.
+   When x < *largest-small-prime*, searches the
+   array for the prime and returns it.
+    Otherwise, tests consecutive odd numbers 
+   and returns the first prime found."
+  (if (realp x)
+      (let ((m (floor x)))
+        (if (< m *largest-small-prime*)
+            (find-if #'(lambda (p) (> p m)) *small-primes*)
+            (do ((n (if (evenp m) (+ m 1) (+ m 2)) (+ n 2)))
+                ((primep n) n))))
+      (error 'type-error*
+             :argument x
+             :type (type-of x)
+             :expected-type 'real
+             :location 'next-prime)))
+
+(defun modified-segmented-sieve% (start stop)
+  (let ((segment-max (isqrt stop)))
+    (let ((lower-segment
+            (cond
+              ((< segment-max *largest-small-prime*)
+               (subseq *small-primes* (1+ (position-if #'(lambda (p)
+                                                           (>= p segment-max)) *small-primes*))))
+              ((= segment-max *largest-small-prime*)
+               (alexandria:copy-array *small-primes*))
+              (t
+               (make-extended-lower-segment% segment-max))))
+          (sieve (make-array (- stop start)
+                               :element-type 'bit
+                               :initial-element 1)))
+      (serapeum:do-each (prime lower-segment)
+        (do ((multiple (* (ceiling start prime) prime) (+ multiple prime)))
+            ((>= multiple stop))
+          (setf (bit lower-segment (- multiple start)) 0)))
+      (let ((primes (make-array (estimate-prime-array-size start stop)
+                      :element-type 'integer
+                      :adjustable t
+                      :fill-pointer 0)))
+        (loop for i from start below stop
+              for bit across sieve
+              when (= bit 1)
+              do
+              (vector-push-extend i primes)
+              finally
+              (return primes))))))
+
+(defun make-extended-lower-segment% (segment-max)
+  "Given two integer SEGMENT-MAX, returns
+   an array of the all prime numbers less than or equal
+   to SEGMENT-MAX. This helper function is intended to be
+   used only if SEGMENT-MAX > *largest-small-prime*"
+  (let ((sieve (make-array (1+ segment-max)
+          :element-type 'bit
+          :initial-element 1))
+        (segment-max-isqrt (isqrt segment-max)))
+    (setf (bit sieve 0) 0
+          (bit sieve 1) 0)
+    (do ((i 4 (+ i 2)))
+        ((> i segment-max))
+      (setf (bit sieve i) 0))
+    (do ((j 3 (+ j 2)))
+        ((> j segment-max-isqrt))
+      (do ((i (* j j) (+ i j)))
+          ((> i segment-max))
+        (setf (bit sieve i) 0)))
+    (let ((segment (make-array (ceiling (/ segment-max (log segment-max)))
+                     :element-type 'integer
+                     :adjustable t
+                     :fill-pointer 0)))
+      (dotimes (i (1+ segment-max) segment)
+        (when (= (bit sieve 1))
+          (vector-push-extend i segment))))))

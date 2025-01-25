@@ -7,7 +7,7 @@
                 
 (defpackage #:ros-utils
   #+ecl (:shadow :rationalize)
-  (:use :cl :iterate)
+  (:use :cl :iterate :ros-conditions)
   (:import-from :alexandria
    :with-gensyms)
   (:import-from :serapeum
@@ -17,7 +17,7 @@
    :broadcast-printout
    :dbind
    :mbind
-   :rationalize))
+   :binary-search))
 
 (defpackage #:prime-utils
   (:use :cl :ros-conditions)
