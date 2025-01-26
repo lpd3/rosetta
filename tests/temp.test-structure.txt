@@ -1,0 +1,171 @@
+*sequential-range-low-ceiling* 64
+*plain-sieve-limit* 2^22 = 4,194,304
+*segmented-sieve-limit* 2^44 = 17,592,186,044,416
+*soft-range-max* 2^22 = 4,194,304
+*small-primes-limit* = 1000
+*small-primes* [an array of all primes < *small-primes-limit*]
+*largest-small-prime* 997
+
+primes-below-x
+  type-error* (real)
+  outliers:
+    floats
+    ratios
+  dependency: primes-in-range
+
+primes-in-range
+  type-error*s:
+    start (integer)
+    stop (integer)
+  cerror: range = (stop - start) > *soft-range-max*
+  outliers:
+    negative start
+    range < 1
+    range < 2 and start > 2 and start even
+  dependencies:
+    make-prime-array%
+    small-primes-range-subseq% (stop < *small-primes-limit*)
+    plain-sieve-subseq% (stop < *plain-sieve-limit* and start <= isqrt(stop)
+    sequential-prime-range%:
+      1. range < *sequential-range-low-ceiling* and >= stop *plain-sieve-limit*
+      2. any case not covered by other cases
+    segmented-sieve (stop < *segmented-sieve-limit*)
+
+make-prime-array%
+  optional args: start, stop (both default to 0)
+  assertion errors:
+    start is not an integer
+    start is negative
+    stop is not an integer
+    stop is negative
+  outlier: start >= stop
+  dependency: estimate-prime-array-size%
+
+estimate-prime-array-size%
+  assertion errors
+    start not an integer
+    stop not an integer
+  outliers
+    stop - start < 1
+    stop - start = 1 and start is even and start > 2
+  dependency: estimate-prime-count
+
+estimate-prime-count
+  type-error*: x (real)
+  outliers:
+    n (floor(x)) < 2
+    n < *largest-small-prime*
+    n < *small-primes-limit*
+
+small-primes-range-subseq%
+  dependency: real-val-subseq
+
+real-val-subseq
+  optional arg: stop
+  type-error*s:
+    start (real)
+    stop (or real null)
+
+plain-sieve-subseq%
+  dependencies:
+    sieve-of-eratosthenes
+    real-val-subseq
+
+sieve-of-eratosthenes
+  type-error*: x (real)
+  dependencies:
+    sieve-aux%
+    make-prime-array%
+    
+sieve-aux%
+  outliers:
+    x < 0
+    x = 0.0
+    n = floor(x) + 1 = 1
+    n = 2
+    n = 3
+    n = 4
+    
+
+sequential-prime-range%
+  dependencies:
+    make-prime-array%
+    next-prime
+
+next-prime
+  type-error* x (real)
+  outliers:
+    x < 2
+    x < 3
+  dependency: primep
+
+segmented-sieve
+  type-error*s:
+    start (real)
+    stop (real)
+  domain-error: when start <= sqrt(stop)
+  outliers:
+    range = stop - start < 2
+    range = 2 and start is odd
+  dependencies:
+    make-prime-array%
+    segment-aux%
+
+segment-aux%
+  dependency: sieve-of-eratosthenes
+
+.......
+
+primes-below-x
+|
+|-- primes-in-range
+    |
+    |-- make-prime-array%
+    |   |
+    |   |-- estimate-prime-array-size%
+    |       |
+    |       |-- estimate-prime-count
+    |
+    |-- small-primes-range-subseq%
+    |   |
+    |   |-- real-val-subseq
+    |
+    |-- plain-sieve-subseq%
+    |   |
+    |   |-- sieve-of-eratosthenes
+    |   |   |
+    |   |   |-- sieve-aux%
+    |   |   |
+    |   |   |-- (make-prime-array%)
+    |   |
+    |   |-- (real-val-subseq)
+    |
+    |-- sequential-prime-range%
+    |   |
+    |   |-- (make-prime-array%)
+    |   |
+    |   |-- next-prime
+    |       |
+    |       |-- primep
+    |
+    |-- segmented-sieve
+        |-- (make-prime-array%)
+        |
+        |-- segment-aux%
+            |
+            |-- (sieve-of-eratosthenes)
+
+1. make-prime-array%
+2. sieve-aux%
+3. sieve-of-eratosthenes
+4. estimate-prime-count
+5. estimate-prime-array-size%
+6. real-val-subseq
+7. next-prime
+8. segment-aux%
+9. small-primes-range-subseq%
+10. plain-sieve-subseq%
+11. sequential-prime-range%
+12. segmented-sieve
+13. primes-in-range
+14. primes-below-x

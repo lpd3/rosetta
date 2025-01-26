@@ -2,6 +2,8 @@
 
 (defpackage :prime-utils-test
   (:use :cl :prime-utils :ros-conditions :parachute)
+  (:import-from :ros-utils
+     :binary-search)
   (:import-from :alexandria)
   (:import-from :serapeum))
 
