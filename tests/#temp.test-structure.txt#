@@ -162,10 +162,10 @@ primes-below-x
 5. estimate-prime-array-size%
 6. real-val-subseq ok
 7. next-prime ok
-8. segment-aux%
-9. small-primes-range-subseq%
-10. plain-sieve-subseq%
-11. sequential-prime-range%
-12. segmented-sieve
-13. primes-in-range
+8. segment-aux% ok
+9. small-primes-range-subseq% ok
+10. plain-sieve-subseq% ok
+11. sequential-prime-range% ok
+12. segmented-sieve ok
+13. primes-in-range 
 14. primes-below-x
