@@ -17,7 +17,14 @@
               prime-utils::make-prime-array%
               prime-utils::estimate-prime-array-size%
               prime-utils::sieve-aux%
-              prime-utils::segment-aux%)
+              prime-utils::segment-aux%
+              prime-utils::*segmented-sieve-limit*
+              prime-utils::small-primes-range-subseq%
+              prime-utils::*plain-sieve-limit*
+              prime-utils::plain-sieve-subseq%
+              prime-utils::sequential-prime-range%
+              prime-utils::*sequential-range-low-ceiling*
+              prime-utils::*soft-range-max*)
             :prime-utils-test)
     ;; global variables for the retest macro
     (defvar *source-code-system*
@@ -61,6 +68,10 @@
              *default-test* ,gtest)
        (parachute:test ,gtest))))
 
+(defun test-new (test &key (report 'plain))
+  (setf *default-test* test)
+  (parachute:test test :report report))
+
 (define-test prime-utils-test-suite)
 
 ;; general utilities
@@ -72,37 +83,37 @@
   :parent utilities-suite
   (fail
     (modular-exponentiation 1.3 10 10)
-    type-error*)
+    'type-error*)
   (fail
     (modular-exponentiation "five" 10 10)
-    type-error*)
+    'type-error*)
   (fail
-    (modular-exponentiation -10 10 10)
-    domain-error)
+      (modular-exponentiation -10 10 10)
+    'domain-error)
   (fail
     (modular-exponentiation 10 7.0 10)
-    type-error*)
+    'type-error*)
   (fail
     (modular-exponentiation 10 "ten" 10)
-    type-error*)
+    'type-error*)
   (fail
     (modular-exponentiation 10 -10 10)
-    domain-error)
+    'domain-error)
   (fail
     (modular-exponentiation 10 10 #\a)
-    type-error*)
+    'type-error*)
   (fail
     (modular-exponentiation 10 10 10.0)
-    type-error*)
+    'type-error*)
   (fail
     (modular-exponentiation 10 10 0)
-    domain-error)
+    'domain-error)
   (fail
-    (modular-exponentiation 10 10 -10)
-    domain-error)
+      (modular-exponentiation 10 10 -10)
+    'domain-error)
   (fail
     (modular-exponentiation 0 0 10)
-    domain-error))
+    'domain-error))
 
 (define-test modular-exponentiation-outliers
   :parent utilities-suite
@@ -147,7 +158,7 @@
   ;; The Jacobi symbol (1/n) = 1, n > 0, n is odd
   (dotimes (i 20)
     (let ((k (random 1000))
-          (n (1- (* (random 500) 2))))
+          (n (1+ (* (random 500) 2))))
       (is #'= 1 (jacobi k 1))
       (is #'= 1 (jacobi 1 n)))))
 
@@ -315,17 +326,19 @@
 
 (define-test real-val-subseq-test
   :parent utilities-suite
-  (fail (real-val-subseq "zero" 100) 'type-error*)
-  (fail (real-val-subseq #C(-6 5) 100) 'type-error*)
-  (fail (real-val-subseq 3 #\9) 'type-error*)
-  (fail (real-val-subseq 3 #C(9 0.0)) 'type-error*)
+  (fail (real-val-subseq 5 50 90) 'type-error*)
+  (fail (real-val-subseq '(1 2 3 . 4) 2 4) 'type-error*)
+  (fail (real-val-subseq *small-primes* "zero" 100) 'type-error*)
+  (fail (real-val-subseq *small-primes* #C(-6 5) 100) 'type-error*)
+  (fail (real-val-subseq *small-primes* 3 #\9) 'type-error*)
+  (fail (real-val-subseq *small-primes* 3 #C(9 1.0)) 'type-error*)
   (let ((trial-1 nil))
     (do ((i 1 (+ i 2)))
         ((> i 100) (setf trial-1 (nreverse trial-1)))
       (push i trial-1))
     (is #'equal '(33 35 37 39) (real-val-subseq trial-1 32 40))
     (is #'equal '(1 3) (real-val-subseq trial-1 0.5 4.5))
-    (is #'equal '(1 3) (rea1-val-subseq trial=1 -1000000 4))
+    (is #'equal '(1 3) (real-val-subseq trial-1 -1000000 4))
     (is #'equal '(95 97 99) (real-val-subseq trial-1 95))
     (is #'equal trial-1 (real-val-subseq trial-1 -1))
     (is #'equal () (real-val-subseq trial-1 101 101))
@@ -549,8 +562,7 @@
 (define-test baillie-psw-suite
   :parent primality-testing-test-suite
   :depends-on (miller-rabin-suite
-               lucas-suite
-               primes-below-x-suite))
+               lucas-suite))
 
 ;; The following tests were cribbed from https://github.com/armchaircaver/Baillie-PSW/blob/main/baillie%20PSW%20test%20suite.py
 
@@ -608,12 +620,34 @@
        ((= i 2000))
     (false (baillie-psw ls) "~D (~D^2)" ls n)))
 
+(defparameter *random-odd-primes*
+  '(7 61 617 1669 38749 354209 7265371 21665989 782271293 5941689773
+             23441696371 415994239007 2767800401747 37334227259881 705538031904473
+             2195425176015629 41293411019727409 633129879060694261 9425403194280914173
+             68978437789918659757 196119701946946477709 2194773086946479940149
+             17204183964356447777021 17204183964356447777021 8723510021975520826234643
+             85597913137587545437677691 747744033352212294351193633
+             2312458437187656653428093153 24357059183621754240293630963
+             165067768996125517602545738111))
+
 (define-test baillie-psw-identifies-primes
   :parent baillie-psw-suite
-  (loop for prime across (primes-below-x (expt 10 6))
-        when (> prime *small-primes-limit*)
-          do
-        (true (baillie-psw prime) "n: ~D is prime but baillie-psw said no." prime)))
+  (let* ((numbers (copy-list *random-odd-primes*)))
+    ;; add composite numbers as foils to the list of numbers
+    (dolist (p *random-odd-primes*)
+      (push (* (alexandria:random-elt '(3 5 7)) p) numbers)
+      (if (< p (expt 10 14))
+          (push (square p) numbers)
+          (let* ((isqrt (isqrt p))
+                 (multiplicand (if (evenp isqrt)
+                                   (+ isqrt 1)
+                                   isqrt)))
+            (push (* multiplicand (- multiplicand 2)) numbers))))
+    (setf numbers (alexandria:shuffle numbers))
+    (dolist (n numbers)
+      (if (member n *random-odd-primes*)
+          (true (baillie-psw n))
+          (false (baillie-psw n))))))
 
 (define-test baillie-psw-identifies-larger-primes
   :parent baillie-psw-suite
@@ -713,13 +747,21 @@
   PRIMEP-LARGER-NUMBERS tests.")
 
 (define-test primep-larger-numbers
-  :parent primep-suite
-  (let* ((primes (primes-below-x (1+ *pln-limit*))))
-    (dotimes (i *pln-runs*)
-      (let ((n (random (1+ *pln-limit*))))
-        (if (binary-search n primes #'= #'<)
-            (true (primep n) "n: ~D in primes list" n)
-            (false (primep n) "n: ~D not in primes list" n))))))
+  (let* ((primes (cons 2 (copy-list *random-odd-primes*)))
+         (numbers (copy-list primes)))
+    (dolist (p primes)
+      (push (* p (alexandria:random-elt '(2 3 5))) numbers)
+      (if (< p (expt 10 13))
+          (push (square p) numbers)
+          (let* ((isqrt (isqrt p)))
+            (if (evenp isqrt)
+                (push (* isqrt (1+ isqrt)) numbers)
+                (push (square (- isqrt 2)) numbers)))))
+    (setf numbers (alexandria:shuffle numbers))
+    (dolist (n numbers)
+      (if (find n primes)
+          (true (primep n))
+          (false (primep n))))))
 
 ;;; generation of prime numbers
 
@@ -820,22 +862,22 @@
     (is #'equalp *small-primes* array)))
 
 (defparameter *ss-test-cases*
- '(((:start . 999950) (:end . 1000000) (:primes . #(999953 999959 999961 999979 999983)))
-   ((:start . 55555555) (:end . 55555654) (:primes . #(55555559 55555573 55555579 55555631 55555651)))
-   ((:start . 1234567890) (:end . 1234567989) (:primes . #(1234567891 1234567907 1234567913 1234567927 1234567949 1234567967 1234567981)))
-   ((:start . 1099511627776) (:end 1099511627903) (:primes . #(1099511627791 1099511627803 1099511627831 1099511627873 1099511627891)))
-   ((:start . 17592186044287) (:end 17592186044416) (:primes . #(17592186044287 17592186044297 17592186044299 17592186044399))))
+ '(((:start . 999950) (:stop . 1000000) (:primes . #(999953 999959 999961 999979 999983)))
+   ((:start . 55555555) (:stop . 55555654) (:primes . #(55555559 55555573 55555579 55555631 55555651)))
+   ((:start . 1234567890) (:stop . 1234567989) (:primes . #(1234567891 1234567907 1234567913 1234567927 1234567949 1234567967 1234567981)))
+   ((:start . 1099511627776) (:stop . 1099511627903) (:primes . #(1099511627791 1099511627803 1099511627831 1099511627873 1099511627891)))
+   ((:start . 17592186044287) (:stop . 17592186044416) (:primes . #(17592186044287 17592186044297 17592186044299 17592186044399))))
   "Test data for segmented-sieve and segment-aux%")
 
 (define-test segment-aux%-correct-answers
   :parent prime-gen-helpers-test-suite
   :depends-on (sieve-of-eratosthenes-errors-and-outliers
-               sieve-of-eratosthenes-correct-answers)
+               sieve-of-eratosthenes-correct-results)
   (dolist (test-case *ss-test-cases*)
-    (let* ((start (assoc :start test-case))
-           (stop (assoc :stop test-case))
-           (prime-array (assoc :prime-array test-case))
-           (sieve (segment-aux start stop)))
+    (let* ((start (cdr (assoc :start test-case)))
+           (stop (cdr (assoc :stop test-case)))
+           (prime-array (cdr (assoc :primes test-case)))
+           (sieve (segment-aux% start stop)))
       (is #'= (- stop start) (length sieve))
       (do ((i start (1+ i)))
           ((= i stop))
@@ -848,7 +890,7 @@
   :depends-on (segment-aux%-correct-answers)
   (let ((stop (1- *segmented-sieve-limit*)))
     (do* ((difference 10 (* difference 10))
-          (start #1=(- start difference) #1#))
+          (start #1=(- stop difference) #1#))
          ((> difference (expt 10 6)))
       (let ((sieve (segment-aux% start stop)))
         (is #'= (- stop start) (length sieve))))))
@@ -858,35 +900,37 @@
   :depends-on (real-val-subseq-test)
   (dotimes (i 10)
     (let ((n (serapeum:random-in-range 2 *small-primes-limit*)))
-      (is #'equalp small-primes-range-subseq% n n)))
+      (is #'equalp #() (small-primes-range-subseq% n n))))
   (dotimes (i 50)
     (let* ((bigger (serapeum:random-in-range 100 *small-primes-limit*))
            (smaller (random bigger)))
-      (is #'equalp #() (small-primes-range-subseq% bigger smaller))
-      (let* ((useful-subseq (small-primes-subseq% smaller bigger))
-             (first-useful (alexandria:first-elt useful-subseq))
-             (last-useful (alexandria:last-elt useful-subseq)))
-        (true (>= first-useful start))
-        (true (< last-useful stop))
-        (true (notany #'(lambda (p)
-                          (and
-                           (< p first-useful)
-                           (>= p start)))
-                      *small-primes*))
-        (true (notany #'(lambda (p)
-                          (and
-                           (> p last-useful)
-                           (< p stop)))
-                      *small-primes*))))))
+      (is #'equalp #() (small-primes-range-subseq% bigger bigger))
+      (let ((useful-subseq (small-primes-range-subseq% smaller bigger)))
+        (if (equalp #() useful-subseq)
+            (false (primes-in-range-p smaller bigger))
+            (let ((first-useful (alexandria:first-elt useful-subseq))
+                  (last-useful (alexandria:last-elt useful-subseq)))
+              (true (>= first-useful smaller))
+              (true (< last-useful bigger))
+              (true (notany #'(lambda (p)
+                                (and
+                                 (< p first-useful)
+                                 (>= p smaller)))
+                            *small-primes*))
+              (true (notany #'(lambda (p)
+                                (and
+                                 (> p last-useful)
+                                 (< p bigger)))
+                            *small-primes*))))))))
 
 (define-test plain-sieve-subseq%-works
   :parent prime-gen-helpers-test-suite
   :depends-on (sieve-of-eratosthenes-errors-and-outliers
-               sieve-of-eratosthenes-cotrect-answers
+               sieve-of-eratosthenes-correct-results
                real-val-subseq-test)
   (dotimes (i 50)
-    (let* ((stop (random *plain-sieve-limit*))
-           (range (random (min stop 10000)))
+    (let* ((stop (serapeum:random-in-range 100 *plain-sieve-limit*))
+           (range (random (min (-  stop 10) 10000)))
            (start (- stop range))
            (subseq (plain-sieve-subseq% start stop)))
       (cond
@@ -963,7 +1007,7 @@
   (fail (next-prime #C(1 1)) 'type-error*)
   (dolist (x '(-12345 -1324.6763 0 0.0 1 1.9999 1/2 -13/64))
     (is #'= 2 (next-prime x)))
-  (dolist (x '(2 2.0 5/4 2.7 2.999 2999/1000))
+  (dolist (x '(2 2.0 9/4 2.7 2.999 2999/1000))
     (is #'= 3 (next-prime x))))
 
 (define-test next-prime-correct-answers
@@ -990,23 +1034,23 @@
                       (982704 982741)
                       (3042599 3042607)
                       (15854369 15854381)
-                      (989775274 989775281)
-                      (6764602577 6764604591))))
-    (dotimes (test-case test-cases)
+                      (989775274 989775289)
+                      (6764602577 6764602591))))
+    (dolist (test-case test-cases)
       (is #'= (second test-case) (next-prime (first test-case))))))
 
 (define-test segmented-sieve-errors-and-outliers
   :parent prime-gen-main
   :depends-on (make-prime-array%-errors-and-outliers
                make-prime-array%-works
-               segment-aux%-works
+               segment-aux%-correct-answers
                segment-aux%-works-big-ranges)
   (fail (segmented-sieve "one hundred twenty-seven" 401) 'type-error*)
   (fail (segmented-sieve #C(127 1) 401) 'type-error*)
   (fail (segmented-sieve 127 "four hundred one") 'type-error*)
   (fail (segmented-sieve 127 #C(401 1)) 'type-error*)
   (fail (segmented-sieve 1000 1000000) 'domain-error)
-  (fail (segmented-sieve 5 49) 'domain-error*)
+  (fail (segmented-sieve 5 49) 'domain-error)
 
   (dolist (test-case '((505 . 505)
                        (10000 . 505)
@@ -1018,12 +1062,12 @@
   :parent prime-gen-main
   :depends-on (segmented-sieve-errors-and-outliers)
   (dolist (test-case *ss-test-cases*)
-    (let ((start (assoc :start test-case))
-          (stop (assoc :stop test-case))
-          (primes (assoc :primes test-case)))
+    (let ((start (cdr (assoc :start test-case)))
+          (stop (cdr (assoc :stop test-case)))
+          (primes (cdr (assoc :primes test-case))))
       (is #'equalp primes (segmented-sieve start stop))
-      (is #'equalp primes (segmented-sieve (+ 0.8 start) stop))
-      (is #'equalp primes (segmented-sieve start (+ 0.8 stop)))
+      (is #'equalp primes (segmented-sieve (+ 0.80l0 start) stop))
+      (is #'equalp primes (segmented-sieve start (+ 0.80l0 stop)))
       (is #'equalp primes (segmented-sieve (+ 9/10 start) (+ 9/10 stop))))))
 (defparameter *ss-test-runs*
   100
@@ -1053,8 +1097,8 @@
                        (-50 -2)
                        (-1990 2)))
     (is #'equalp #() (apply #'primes-in-range test-case))
-    (is #'equalp #() (primes-in-range (+ (first test-case) 0.9) (- (second test-case 0.9))))
-    (is #'equalp #() (primes-in-range (+ (first test-case) 9/10) (- (second test-case 9/10))))))
+    (is #'equalp #() (primes-in-range (+ (first test-case) 0.9) (- (second test-case) 0.9)))
+    (is #'equalp #() (primes-in-range (+ (first test-case) 9/10) (- (second test-case) 9/10)))))
 
 (define-test primes-in-range-works
   :parent prime-gen-main
@@ -1085,28 +1129,28 @@
                            *small-primes*)))))))
   ;; The testing for the rest of the scenarios can be accomplished the
   ;; same way for each scenario
-  (let ((small-range (- *sequential-range-lower-ceiling* 10))
-        (big-range (+ *sequential-range-lower-ceiling* 1000)))
-    (dolist (params '((*small-primes-limit* *plain-sieve-limit*)
-                      (*plain-sieve-limit* *segmented-sieve-limit*)
-                      (*segmented-sieve-limit* (square most-positive-fixnum))))
+  (let ((small-range (- *sequential-range-low-ceiling* 10))
+        (big-range (+ *sequential-range-low-ceiling* 1000)))
+    (dolist (params `((,*small-primes-limit* ,*plain-sieve-limit*)
+                      (,*plain-sieve-limit* ,*segmented-sieve-limit*)
+                      (,*segmented-sieve-limit* ,(square most-positive-fixnum))))
       (destructuring-bind
           (min-start max-stop)
           params
         (dotimes (i 50)
-          (let ((stop (serapeum:random-in-range (+ min-start big-range) max-stop))
-                (high-start (max min-start (- stop small-range)))
-                (low-start (max min-start (- stop big-range)))
-                (small-seq (primes-in-range high-start stop))
-                (big-seq (primes-in-range low-start stop)))
-            (dolist (params '((small-seq high-start)
-                              (big-seq low-start)))
+          (let* ((stop (serapeum:random-in-range (+ min-start big-range) max-stop))
+                 (high-start (max min-start (- stop small-range)))
+                 (low-start (max min-start (- stop big-range)))
+                 (small-seq (primes-in-range high-start stop))
+                 (big-seq (primes-in-range low-start stop)))
+            (dolist (params `((,small-seq ,high-start)
+                              (,big-seq ,low-start)))
               (destructuring-bind
                   (seq start)
                   params           
                 (cond
                   ((uiop:emptyp seq)
-                   (false (primes-in-rangep start stop)))
+                   (false (primes-in-range-p start stop)))
                   (t
                    (let ((first-seq (alexandria:first-elt seq))
                          (last-seq (alexandria:last-elt seq)))
@@ -1119,12 +1163,12 @@
 
 (define-test primes-below-x-test
   :parent prime-gen-main
-  :depends-on (primes-in-range-correct-answers)
+  :depends-on (primes-in-range-works)
   (fail (primes-below-x "one million") 'type-error*)
   (fail (primes-below-x #C(1000000 1)) 'type-error*)
   (dotimes (i 50)
-    (let* ((x (random 10000.00)))
-           (primes (primes-below-x x))
+    (let* ((x (random 10000.00))
+           (primes (primes-below-x x)))
       (cond
         ((< x 3)
          (true (uiop:emptyp primes)))
@@ -1133,14 +1177,26 @@
                (plast (alexandria:last-elt primes)))
            (is #'= 2 pfirst)
            (true (primep plast))
-           (false (primee-in-range-p (1+ plast) x))
+           (false (primes-in-range-p (1+ plast) x))
            (dotimes (j 10)
              (true (primep (alexandria:random-elt primes)))))))))
-  (let* ((big-primes (primes-below-x *soft-range-limit*))
-         (pfirst (alexandria:first-elt big-primes))
-         (plast (alexandria:last-elt big-primes)))
-    (is #'= 2 pfirst)
-    (true (primep plast))
-    (false (primes-in-range-p (1+ plast) *soft-range-max*))
-    (dotimes (i 10)
-      (true (primep (alexandria:random-elt big-primes))))))
+
+  (dotimes (i 20)
+    (let* ((x (random (1+ *soft-range-max*)))
+           (big-primes (primes-below-x x)))
+      (if (uiop:emptyp big-primes)
+          (false (primes-in-range-p 0 x))
+          (let ((pfirst (alexandria:first-elt big-primes))
+                (plast (alexandria:last-elt big-primes)))
+            (is #'= 2 pfirst)
+            (true (primep plast))
+            (false (primes-in-range-p (1+ plast) *soft-range-max*))
+            (dotimes (i 10)
+              (true (primep (alexandria:random-elt big-primes))))))))
+  (let ((biggest-primes (primes-below-x (1- *soft-range-max*))))
+    (is #'= 2 (alexandria:first-elt biggest-primes))
+    (let ((last-biggest (alexandria:last-elt biggest-primes)))
+      (true (primep last-biggest))
+      (false (primes-in-range-p (1+ last-biggest) *soft-range-max*))
+      (dotimes (i 20)
+        (true (primep (alexandria:random-elt biggest-primes)))))))

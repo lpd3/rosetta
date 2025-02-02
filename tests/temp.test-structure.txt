@@ -155,17 +155,18 @@ primes-below-x
             |
             |-- (sieve-of-eratosthenes)
 
-1. make-prime-array% ok
-2. sieve-aux% ok
-3. sieve-of-eratosthenes ok
-4. estimate-prime-count ok
-5. estimate-prime-array-size%
-6. real-val-subseq ok
-7. next-prime ok
-8. segment-aux%
-9. small-primes-range-subseq%
-10. plain-sieve-subseq%
-11. sequential-prime-range%
-12. segmented-sieve
-13. primes-in-range
-14. primes-below-x
+1. make-prime-array% ok tested
+2. sieve-aux% ok tested
+3. sieve-of-eratosthenes ok tested
+4. estimate-prime-count ok tested
+5. estimate-prime-array-size% tested
+6. real-val-subseq ok tested
+7. next-prime ok tested
+8. segment-aux% ok tested
+9. small-primes-range-subseq% ok tested
+10. plain-sieve-subseq% ok tested
+11. sequential-prime-range% ok tested
+12. segmented-sieve ok tested
+13. primes-in-range ok tested
+14. primes-below-x ok
+
