@@ -2039,76 +2039,173 @@ ascending.
 
 |#
 
-;; First, we build an in-place sieve.
+;; I need to think about what I need to do to avoid repeated calculations.
 
-;; We can weed out 77% of the search space
-;; by not considering multiples of the first
-;; four primes in the input to the
-;; sequential prime finder. These multiples
-;; form a repetitive ring of distances between
-;; factors. The ring has a circumference of 210
-;; with 48 holes, the possible primes.
+;; Let's put this into my own words. First some facts
+;; 1. Given two consecutive prime numbers p1 and p2, the gap is p2 - p1.
+;; 2. Except 2, all prime numbers are odd.
+;; 3. The first gap, between p1 = 2 and p2 = 3 is 3-2 = 1. This an odd gap.
+;; 4. Since all primes except 2 are odd, all gaps after the first will be even.
+;; 5. Each gap after the first may be any even positive integers.
+;; 6. Every positive even integer corresponds to an infinite number of prime gaps.
+;; 7. There is no ordering to the gaps or means of finding out in advance what they will be.
 
-(setf *print-circle* t)
+;; What do we have to do?
+;; 1. We keep track of prime gaps.
+;; 2. Define "adjacent" gaps any gaps g1 and g2 such that abs(g1 - g2) = 2.
+;; 3. If we encounter a new gap size, how far is the lower prime from the lower prime
+;;    of the first-encountered gap whose size is g-2?. How far is the lower prime from the
+;;    first encountered gap whose size is g+2.
+;;    Let us call the absolute values of these distances distances of appearance.
+;;
+;; 4. For each m from 1 through 8, find the first pair of gaps whose distance of appearance >= 10^m.
+;;    We need to report the 4 primes, the distance of appearance, the m value, and the
+;;    sequential gap numbers for each case.
+;;
+;; So how to proceed, knowing that I should be parsimonious with memory requirements?
+;;
+;; 1. Primes should be generated sequentially, not in ranges. We trade slower processing time
+;; for O(1) space.
+;; 2. We are considering only the even gaps... The first gap we need is 2. We keep a hold of
+;;    that pair: 3 and 5. Then we look at gap #3, 5 to 7. Gap is 2. We have already. Move on.
+;;    Gap #4: 7 to 11. This gap is 4. The distance of appearance is 7-3=4. 4 < 10. We keep ahold of gap 1,
+;;    so that we never need to consider a gap of 2 again. We also store gap 4 = 4. We are now looking
+;;    for a gap of 6. Gap 5: 11 to 13 is 2. Gap 6: 13 to 17 is 4. Gap 7: 17 to 19 is 2. Gap 8: 19 to
+;;    23 is 4. Gap 9: 23 to 29 is 6. Here it is. The distance of appearance is 23 - 7 = 16 > 10.
+;;    This goes in the record book. The next record to obtain is >= 100. And the next gap to find is 8.
+;;    Gap 10: 29 to 31, 2; Gap 11: 31 to 37, 6; Gap 12: 37 to 41, 4; Gap 13: 41 to 43, 2; Gap 14: 43 to 47, 4;
+;;    Gap 15: 47 to 53, 6; Gap 16: 53 to 59, 6; Gap 17: 59 to 61, 2; Gap 18: 61 to 67, 6; Gap 19: 67 to 71, 4;
+;;    Gap 20: 71 to 73, 2; Gap 21: 73 to 79, 6; Gap 22: 79 to 83, 4; Gap 23: 83 to 89, 6; Gap 24: 89 to 97, 8.
+;;    We found it. Distance of appearance is 89 - 23 = 66, < 100.
+;;    Now, there is another complication. The first gap larger that 8 occurs at gap 29 = 14. We have not yet
+;;    encountered 10 or 12. We need to store it and wait for later.
+;;
+;;    Here is a suggested implementation:
+;;    Collections: Something that a pair of integers.
+;;    Something that maps integers to pairs. Something that holds
+;;    statistics about adjacent pairs. Something to hold the statistics
+;;    I choose a struct for the pair (more transparent
+;;    to the reader than a list or array), and a hash-map
+;;    for the associations. Since we care about the statistics for fewer than
+;;    10 pairs of pairs, and it is easiest to maintain an order,
+;;    an alist should be used. We will use another struct for the statistics
 
-(defconstant +wheel+
-  '#1=(2 4 2 4 6 2 6 4 2 4 6 6
-       2 6 4 2 6 4 6 8 4 2 4 2
-       4 8 6 4 6 4 2 6 2 6 6 4
-       2 4 6 2 6 4 2 4 2 10 2 10
-       . #1#)
-  "Circular list containing the
-  wheel of differences between
-  integers not divisible by 2, 3,
-  5 or 7. The wheel starts at 11
-  and the first revolution ends
-  at 231.")
+;;    Plan of attack
+;;    1. Define the pair struct
+;;    2. Define the stats struct
+;;    3. Create the pair table. Initialize it with gap 2, size 2, lower 3
+;;    4. Initialize the alist with all keys and vals set to nil.
 
-;; To create an in-place sieve, we start
-;; with a collection containing (prime multiple)
-;; pairs. These are stored in a min-heap,
-;; keyed to the multiples. For each new
-;; number n  in the input, we compare it to
-;; the least multiple m1. If n < m1, then
-;; n is prime. It and its square (the multiple)
-;; are added to the heap. If not,
-;; is n == m1? If so, n is composite.
-;; Increment m1 by its corresponding
-;; prime. If not, n > m1. Increment m1
-;; by its corresponding prime. Then,
-;; take m2, the top composite of the heap
-;; after the reshuffling and try again.
-;; Continue this process until n <= the test
-;; composite, m[L].If n < m[L], n is
-;; prime. Othersise, it is composite.
+;;    5. previous-prime = 5, current gap = 3
+;;    6. while stats alist still as empty entries: loop
+;;    7. next-prime = next prime
+;;    8. gap = next-prime - previous-prime
+;;    9. if gap is not a key in the table
+;;    10. do
+;;    11. add a new pair to the table
+;;    12. check the previous gap.
+;;    13. If the appearance distance is greater than any milestone and
+;;        those milestones do not not have entries, create entries for them.
+;;    14. check the next gap, completing step 13 for that appearance distance
+;;        if necesary
+;;    15. end do
+;;    16. previous-prime = next-prime, current-gap += 1
+;;    17. end loop
+;;    18. print results.
 
-(defstruct (heap-entry
-	    (:conc-name nil)
-	    (:constructor entry (pri &optional com)))
-  (prime nil :type integer)
-  (comp nil :type (or integer null)))
+;; My concept of the problem was incorrect thus my implementation was wrong.
+;; My idea: visit each prime gap g. The first time I encountered two prime gaps g1 and
+;; g2 such that g1 +- 2 = g2 and abs(lower prime g1 - lower prime g2) > 10 that would count
+;; as a milestone. Then 100, 1000, etc.
+;; The real task is subtedly different: we are lookimg for the minimal g1 for which the milestone is met.
 
-(defmethod initialize-instance :after ((instance heap-entry) &rest initargs)
-  "When the composite member of the heap-entry 
-   has not been supplied, populate the slot
-   with the square of the prime slot value.
-   Return the instance."
-  (declare (ignore initargs))
-  (when (null (comp entry))
-    (let ((prime (prime entry)))
-      (setf (comp entry)
-	    (* prime prime))))
-  entry)
+;; Both versions start out the same
+;; at Milestone = 10, the first time we encounter a distance > 10 between a g1 and g2
+;; is for g1: gap 4 at (7, 11), g2: gap 6 at (23, 29), distance 16.
+;; Our second answers diverged.
+;; The first encountered distance > 100 occurs at
+;; g1: gap 18 at (523, 541), g2: gap 20 at (887, 907), distance 364.
+;; However the lesser g1: gap 14 at (113, 127), g2: gap 16 at (1831, 1847) distance 1718.
+;; This was also the result for M=1000 in both vetsions. Back to the drawing board.
 
-(defmethod incf-entry ((entry heap-entry))
-  "Increment the composite value of the 
-   heap-entry by its prime value. Return
-   the entry"
-  (incf (comp entry)
-	(prime entry))
-  entry)
+;; So I will translate the second Wren approach. The choice of sieving or taking primes as they come
+;; is a tricky one. Optimize speed or space? I decided to optimize space. Also, I have
+;; rolled my own prime generator, so this will be much slower than code that relies on
+;; adaptations of a C++ highly-optimized library. Here goes.
 
 
+(defvar *pglimit*
+  1e8
+  "Largest milestone to reach.")
 
+(defun prime-gap-main ()
+  "Translation of the Wren/Lua/Python approach. Thus, horribly inelegant and un-Lispy"
+  (loop with gapstarts = (get-gapstarts)
+        with maxgap = (apply #'max (hash-table-keys gapstarts))
+        with milestone = 10 ;; PM in the original
+        with gap1 = 2
+        do
+           (assert (<= gap1 maxgap))
+           (loop until (gethash gap1 gapstarts)
+                 do
+                    (incf gap1 2))
+           (let* ((start1 (gethash gap1 gapstarts))
+                  (gap2 (+ gap1 2))
+                  (start2 (gethash gap2 gapstarts)))
+             (cond
+               (start2
+                (let ((diff (abs (- start2 start1))))
+                  (cond
+                    ((> diff milestone)
+                     (format t "~&Earliest difference >~:D between adjacent prime gap starting ~
+                             primes:~%" milestone)
+                     (format t "Gap ~D starts at ~:D, gap ~D starts at ~:D, difference is ~
+                             ~:D.~2%"
+                             gap1 start1 gap2 start2 diff)
+                     (when (>= milestone *pglimit*)
+                       (return))
+                     (setf milestone (* milestone 10)))
+                    (t
+                     (setf gap1 gap2)))))
+               (t
+                (setf gap1 (+ gap2 2)))))))
 
+(defun get-gapstarts ()
+  (let ((prime-limit (* *pglimit* 5))
+        (gapstarts (dict)))
+    (do ((prime1 3 prime2)
+         (prime2 5 (next-prime prime2)))
+        ((>= prime2 prime-limit) gapstarts)
+      (unless (gethash (- prime2 prime1) gapstarts)
+        (setf (gethash (- prime2 prime1) gapstarts) prime1)))))
 
+#| It worked, and it wasn't terribly so. I gave up 
+waiting for the 1e9 limit, but the 1e8 limit was
+calculated in less than 10 minutes. (1e7 was a few seconds).
+
+Here are the results:
+
+Earliest difference >10 between adjacent prime gap starting primes:
+Gap 4 starts at 7, gap 6 starts at 23, difference is 16.
+
+Earliest difference >100 between adjacent prime gap starting primes:
+Gap 14 starts at 113, gap 16 starts at 1,831, difference is 1,718.
+
+Earliest difference >1,000 between adjacent prime gap starting primes:
+Gap 14 starts at 113, gap 16 starts at 1,831, difference is 1,718.
+
+Earliest difference >10,000 between adjacent prime gap starting primes:
+Gap 36 starts at 9,551, gap 38 starts at 30,593, difference is 21,042.
+
+Earliest difference >100,000 between adjacent prime gap starting primes:
+Gap 70 starts at 173,359, gap 72 starts at 31,397, difference is 141,962.
+
+Earliest difference >1,000,000 between adjacent prime gap starting primes:
+Gap 100 starts at 396,733, gap 102 starts at 1,444,309, difference is 1,047,576.
+
+Earliest difference >10,000,000 between adjacent prime gap starting primes:
+Gap 148 starts at 2,010,733, gap 150 starts at 13,626,257, difference is 11,615,524.
+
+Earliest difference >100,000,000 between adjacent prime gap starting primes:
+Gap 198 starts at 46,006,769, gap 200 starts at 378,043,979, difference is 332,037,210.
+#|

@@ -1439,13 +1439,6 @@ any number regardless of size
        (next-prime prime)
        results))))
 
-(defun next-prime (p)
-  (if (< p *biggest-first-prime*)
-      (nth (1+ (position p *first-primes*))
-           *first-primes*)
-      (do ((new-p (+ p 2) (+ new-p 2)))
-          ((primep new-p) new-p))))
-
 (defun divides (n m)
   (zerop (mod m n)))
   

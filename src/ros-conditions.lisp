@@ -53,3 +53,14 @@
                    e
                (format stream "Argument ~S is out of domain for ~A, which is ~A."
                        argument location domain)))))
+
+(define-condition large-range-error (ros-error)
+  ((range
+    :reader large-range-error-range
+    :initarg :range
+    :initform (error () "large-range-error requires a range")
+    :documentation "The range in question"))
+  (:documentation "Error signaled when a function that returns a sequence is given arguments that could exhaust memory if the function is executed"
+   :report (lambda (e stream)
+             (let ((range (large-range-error-range e)))
+               (format stream "Range is ~D, which is risky." range)))))

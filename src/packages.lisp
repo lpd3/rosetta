@@ -3,7 +3,8 @@
 (defpackage #:ros-conditions
   (:use :cl)
   (:export :type-error*
-           :domain-error))
+           :domain-error
+           :large-range-error))
                 
 (defpackage #:ros-utils
   #+ecl (:shadow :rationalize)
@@ -33,7 +34,13 @@
            :square
            :jacobi
            :perfect-square-p
-           :primes-below-x))
+           :primes-below-x
+           :estimate-prime-count
+           :sieve-of-eratosthenes
+           :real-val-subseq
+           :next-prime
+           :segmented-sieve
+           :primes-in-range))
 
 (defpackage #:ros-01
   #+ecl (:shadowing-import-from :ros-utils
@@ -51,7 +58,8 @@
 		:if-let
 		:iota
 		:map-permutations
-		:random-elt
+                :positive-integer
+                :random-elt
 		:set-equal
 		:when-let)
   (:import-from :serapeum
@@ -77,8 +85,10 @@
 		:split-string)
   (:import-from :repl-utilities
 		:trace-package)
+  (:import-from :prime-utils
+                :next-prime)
   #+ecl(:import-from :ext
-		     :long-float-positive-infinity))
+	:long-float-positive-infinity))
   
 (defpackage #:power-series
   (:shadow "+" "-" "*" "/" "EXPT")
