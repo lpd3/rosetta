@@ -98,6 +98,14 @@
   (:import-from :alexandria
      :iota))
 
+(defpackage #:pierpont-primes
+  (:use :cl)
+  (:import-from :prime-utils
+     :primep
+     :primes-below-x)
+  (:import-from :serapeum
+     :do-each))
+
 (in-package :ros-01)
 
 (setq *suppress-series-warnings* t)

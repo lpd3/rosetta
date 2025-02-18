@@ -10,17 +10,17 @@
   :depends-on ("alexandria" "serapeum"
                "iterate" "series" "cl-ppcre"
                "repl-utilities" "computable-reals" "fiveam")
-  :serial t
   :components ((:file "src/packages")
-               (:file "src/ros-conditions")
-               (:file "src/utilities")
-               (:file "src/prime-utils")
-	       (:file "src/rc-001")
-               (:file "src/rc-002")
-               (:file "src/rc-003")
-               (:file "src/rc-004")
-               (:file "src/rc-005")
-               (:file "src/rc-006"))
+               (:file "src/ros-conditions" :depends-on ("src/packages"))
+               (:file "src/utilities" :depends-on ("src/ros-conditions"))
+               (:file "src/prime-utils" :depends-on ("src/ros-conditions"))
+	       (:file "src/rc-001" :depends-on ("src/packages"))
+               (:file "src/rc-002" :depends-on ("src/packages"))
+               (:file "src/rc-003" :depends-on ("src/packages"))
+               (:file "src/rc-004" :depends-on ("src/packages"))
+               (:file "src/rc-005" :depends-on ("src/packages"))
+               (:file "src/rc-006" :depends-on ("src/prime-utils"))
+               (:file "src/pierpoint-primes" :depends-on ("src/prime-utils")))
   :in-order-to ((test-op (test-op "rosetta/tests"))))
 
 (defsystem "rosetta/tests"
