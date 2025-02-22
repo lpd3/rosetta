@@ -102,9 +102,13 @@
   (:use :cl)
   (:import-from :prime-utils
      :primep
-     :primes-below-x)
+     :primes-in-range)
   (:import-from :serapeum
-     :do-each))
+     :do-each
+     :take
+     :extrema)
+  (:import-from :alexandria
+     :last-elt))
 
 (in-package :ros-01)
 

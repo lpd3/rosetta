@@ -2208,4 +2208,4 @@ Gap 148 starts at 2,010,733, gap 150 starts at 13,626,257, difference is 11,615,
 
 Earliest difference >100,000,000 between adjacent prime gap starting primes:
 Gap 198 starts at 46,006,769, gap 200 starts at 378,043,979, difference is 332,037,210.
-#|
+|#

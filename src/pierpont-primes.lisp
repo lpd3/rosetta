@@ -76,122 +76,333 @@
 ;;;; Pierpont prime, we should need to search at most 8,000 numbers. This assumes we locate every
 ;;;; Pierpont prime through the 250th, which is not required.
 
-;;;; Approach:
+;;;; Well, it would not be required if we knew ceilings for
+;;;; Pierpont primes of the 2nd type. We know there are 57
+;;;; type 1 primes less than 1e8 and there are 250 less than
+;;;; 1e32. Although the distribution of the two types of primes
+;;;; appears to be similar (up to the 43rd prime of each type)
+;;;; it would be foolhardy to say that the ceilings given for type 1
+;;;; would have the same exact values for type 2. This suggests two
+;;;; different approaches. We can find the first 57 type 1 primes,
+;;;; sort them and take the smallest 50. Then we can search for the single
+;;;; largest type 1 prime less than 1e32.
 
-;;;; 1. Collect the first 50 Pierpont primes
-;;;;    1.1 Create two arrays of size 100 (array 1 and array 2)
-;;;;    1.2 Push 2 and the Fermat primes to array 1
-;;;;    1.3 Create a list of primes from 5 to 10,000
-;;;;    1.4 Create two temporary arrays, temp 1 and temp 2 (size: 500 each)
-;;;;    1.5 (We need not consider any type 1 primes for u = 0. These have been already added.
-;;;;        But we do need to consider type 2 primes with u = 0.)
-;;;;       Create a temp array.
-;;;;    1.6 loop for v from 1 to 16.
-;;;;       1.6.1 Add 3^v - 1 to the temp array
-;;;;    1.7 Using the sieve, push the prime elements of the temp array to array 2.
-;;;;    1.8 loop for u from 1 to 26.
-;;;;       1.8.1 create two temporary arrays: temp1, temp2
-;;;;       1.8.2 loop for v from 1 while 2^u * 3^v - 1 < 10^8
-;;;;           1.8.2.1 add all 2^u * 3^v + 1 that are less than 10^9 to temp1
-;;;;           1.8.2.2 add all 2^u * 3^v - 1 to temp2
-;;;;       1.8.3 Push all prime elements of temp1 to array1
-;;;;       1.8.4 Push all prime elememts of temp2 to array2
-;;;;    1.9 Sort array1
-;;;;    1.10 Sort array2
-;;;;    1.11 truncate array1 to 50 elememts
-;;;;    1.12 truncate array2 to 50 elements
-;;;; 2. Find the 250th of type1 and type2
-;;;;    2.1 Initialize two vars, type1 and type2, to 2.
-;;;;       2.2.1 loop for u = 1 to 106
-;;;;           2.2.1 initialize type1-done and type2-done to nil
-;;;;           2.2.2 loop for v = max(2^u * 3^v - 1) < 10^32, decrementing downward.
-;;;;                 2.2.2.1 Find the type 1 number
-;;;;                 2.2.2.2 If it is < type1
-;;;;                         2.2.2.2.1 If type2-done is t, break from inner loop
-;;;;                         2.2.2.2.2 Else, set type1-done to t
-;;;;                 2.2.2.3 Else If the type 1 is prime
-;;;;                         2.2.2.3.1 Set type1 to the type 1 number
-;;;;                         2.2.2.3.2 If type2-done is t, exit from inner loop
-;;;;                         2.2.2.3.3 Otherwise, set type1-done to t
-;;;;                 2.2.2.4 Find next type 2 number
-;;;;                 2.2.2.5 If type 2 number < type2
-;;;;                         2.2.2.5.1 If type1-done is t, exit from inner loop
-;;;;                         2.2.2.5.2 Else set type2-done to t
-;;;;                 2.2.2.6 Else if the type 2 number is prime
-;;;;                         2.2.2.6.1 Set type2 to the type 2 number
-;;;;                         2.2.2.6.2 If type1-done is t, exit from inner loop
-;;;;                         2.2.2.6.3 Else set type2-done to t
-;;;; 3. Report the results
+;;;; For the type 2 primes, it looks like we will have to search until we
+;;;; find the 250th prime, displaying 1-50 and #250.
 
-(defun pierpont-primes ()
+;;;; We can avoid a small amount of repetition by searching for type2 primes
+;;;; while we search for the first 57 type 1 primes. But then we must finish
+;;;; the job for type 2s.
+
+(in-package :pierpont-primes)
+
+(defun pierponts ()
+  "Solves the problem described above."
   (multiple-value-bind
-        (type1 type2)
-        (first-50-pierponts-types-1-and-2)
-    (multiple-value-bind
-          (250th-type1 250th-type2)
-          (250th-pierponts-types-1-and-2)
-      (display-results type1 type2 250th-type1 250th-type-2))))
+        (first-50-type-1 small-type-2 57th-type-1)
+      (find-small-pierponts)
+    (let ((250th-type-1 (find-250th-type-1 57th-type-1))
+          (type-2 (add-rest-type-2 small-type-2)))
+      (display-results first-50-type-1 (take 50 type-2) 250th-type-1 (last-elt type-2)))))
 
-(defun first-50-pierponts-types-1-and-2 ()
-  (let ((type1 (make-array 64
+(defun find-small-pierponts ()
+  "Finds the first 50 Pierpont primes of both types.
+   Returns three values. The first is a sorted array of the first Pierpont type 1 primes.
+   The second is an (unsorted) array of the Pierpont type 2 primes that are less than 10^8.
+   The third is an integer: the 57th Pierpont type 1 prime."
+  (format *trace-output* "~&Finding small Pierponts.~%")
+  (let* ;; There are precisely 57 Pierpont type 1 primes less than 10^8. I assume that there
+      ;; are at least 50 Pierpont type 2 primes below 10^8. But it doesn't matter, since
+      ;; I will be filling the second array with more primes later.
+      ((limit (expt 10 8))
+       (primes (primes-in-range 3 (isqrt limit)))
+       ;; No candidates except 2 will be even. There will be some (type 2 where v = 0) that
+       ;; are divisible by 3.
+       (type-1 (make-array 64
                  :element-type 'fixnum
+                 :adjustable t
                  :fill-pointer 0))
-        (type2 (make-array 64
-                 :element-type 'fixnum
-                 :fill-pointer 0))
-        (primes (primes-below-x 10000)))
-    (dolist (zero-u-prime '(2 3 5 17 257 65537))
-      (vector-push zero-u-prime type1))
-    (let ((temp (make-array 16
+       (type-2 (make-array 256
+                 :element-type 'integer
+                 :adjustable t
+                 :fill-pointer 0)))
+    ;; There are only 6 type-1 Pierpont primes for which v is 0
+    ;; And of these, 2 is the only possible prime of either type
+    ;; for which u is 0. We simply add all 5 to type-1 and the
+    ;; number 2 to type-2.
+    (dolist (zero-v '(2 3 5 17 257 65537))
+      (vector-push-extend zero-v type-1))
+    (vector-push-extend 2 type-2)
+    ;; For type 2 primes, I don't know if there is
+    ;; a finite number of examples for which v = 0.
+    ;; I do know that the smallest such number that is
+    ;; prime occurs for u = 2. (with u = 0, we get 0 and
+    ;; u = 1 we get 1. But u = 2 gives us 3.
+    ;; I will search all possible candidates, then test them
+    ;; for primality.
+    (let ((temp (make-array 32
                             :element-type 'fixnum
                             :fill-pointer 0)))
-      (do* ((v 1 (1+ v))
-            (candidate #1=(- (expt 3 v) 1) #1#))
-           ((= v 17))
-        (vector-push candidate temp))
-      (do-each (candidate temp)
-        (let ((stop (isqrt candidate)))
-          (do-each (p primes (vector-push candidate type2))
-            (when (> p stop)
-              (vector-push candidate type2)
-              (return))
-            (when (zerop (mod candidate prime))
-              (return))))))
-    (do ((u 1 (1+ u)))
-        ((> (- (* (expt 2 u) 3) 1) 1e8))
-      (let ((temp1 #2=(make-array 500
-                        :element-type 'fixnum
-                        :fill-pointer 0
-                        :adjustable t))
-            (temp2 #2#))
-        (do ((v 1 (1+ v)))
-            (nil)
-          (let* ((number1 (+ (* (expt 2 u) (expt 3 v)) 1))
-                 (number2 (- number1 2)))
-            (when (> number2 1e8)
-              (return))
-            (when (< number1 1e8)
-              (vector-push-extend number1 temp1))
-            (vector-push-extend number2 temp2)))
-        (do-each (candidate temp1)
-          (let ((stop (isqrt candidate)))
-            (do-each (p primes (vector-push candidate type1))
-              (when (> p isqrt)
-                (vector-push candidate type1)
-                (return))
-              (when (zerop (mod candidate prime))
-                (return)))))
-        (do-each (candidate temp2)
-          (let ((stop (isqrt candidate)))
-            (do-each (p primes (vector-push candidate type2))
-              (when (> p stop)
-                (vector-push candidate type2)
-                (return))
-              (when (zerop (mod candidate p))
-                (return)))))))
-    (sort type1 #'<)
-    (sort type2 #'<)
-    (setf (fill-pointer type1) 50)
-    (setf (fill-pointer type2) 50)
-    (values type1 type2)))
-         
+      (do*  ((u 2 (1+ u))
+             (zero-v #2=(1- (expt 2 u)) #2#))
+            ((> zero-v limit))
+        (vector-push zero-v temp))
+      (setf type-2
+            (extract-primes-and-push temp primes type-2)))
+    ;; Now, find all other candidates for both types
+    (let ((temp-1 #3=(make-array 256
+                                 :element-type 'fixnum
+                                 :fill-pointer 0
+                                 :adjustable t))
+          (temp-2 #3#))
+      (do* ((u 1 (1+ u))
+            (two-power (expt 2 u) (expt 2 u)))
+           ((> (1- (* 3 two-power)) limit))
+        (do* ((v 1 (1+ v))
+              (three-power (expt 3 v) (expt 3 v))
+              (type-1-candidate #4=(1+ (* two-power three-power)) #4#)
+              (type-2-candidate #5=(- type-1-candidate 2) #5#))
+             ((> type-2-candidate limit))
+          (vector-push-extend type-1-candidate temp-1)
+          (vector-push-extend type-2-candidate temp-2)))
+      (setf type-1 (extract-primes-and-push temp-1 primes type-1))
+      (setf type-2 (extract-primes-and-push temp-2 primes type-2)))
+    (sort type-1 #'<)
+    (let ((57th-type-1 (last-elt type-1)))
+      ;; The type-1 array should have 57 elements. We need only 50. Make the others "invisible."
+      (setf (fill-pointer type-1) 50)
+      ;; I am not done with the type-2 array yet. It is too early to sort or truncate it.
+      (values type-1 type-2 57th-type-1))))
+
+(defun extract-primes-and-push (candidates primes results)
+  "Takes 3 arrays, all containing numbers. CANDIDATES could contain numbers
+   of any type. PRIMES is an array of prime numbers in order. RESULTS should
+   already contain prime numbers (unsorted) when received. The function finds
+   all prime numbers in CANDIDATES and adds them to RESULTS. Returns RESULTS."
+  (do-each (cand candidates results)
+    (let ((cand-sqrt (isqrt cand)))
+      (block inner-loop
+        (do-each (p primes (vector-push-extend cand results))
+          ;; If the next prime number in PRIMES is greater than the square root of the candidate,
+          ;; the candidate must be prime. If candidate is 2 or 3, all the primes will be greater than
+          ;; the square root of the candidate.
+          (when (> p cand-sqrt)
+            (vector-push-extend cand results)
+            (return-from inner-loop))
+          ;; Candidate cannot be equal to the prime, since the prime must be
+          ;; less than or equal to the square root of the candidate to come under
+          ;; consideration. So if prime divides candidate, the candidate must be a
+          ;; multiple of the prime, and thus, composite.
+          (when (zerop (mod cand p))
+            (return-from inner-loop)))))))
+
+(defun find-250th-type-1 (57th-type-1)
+  "Finds the 250th Pierpont prime type-1. Takes an
+   integer: the 57th Pierpont type 1 prime (The largest
+   such prime less than 10^8). Returns an 
+   integer: the 250th such prime."
+  (format *trace-output* "~&Finding 250th type 1.~%")
+  ;; There are precisely 250 Pierpont type-1 primes less than 10^32.
+  ;; We need to find the largest Pierpont prime type 1 that is less than 10^32.
+  (let ((limit (expt 10 32))
+        ;; big-type-1 will hold our answer. For now, it is set to 2.
+        (big-type-1 57th-type-1))
+    ;; Start with the smallest possible threes-part: 3.
+    (do ((threes-part 3 (* threes-part 3)))
+        ((>= (1+ (* 2 threes-part)) limit) big-type-1)
+      (block inner-loop
+        ;; We start with the largest possible twos-part such that multiplying twos-part by
+        ;; threes-part and adding 1 is less than 10^32. Then we
+        ;; bit-shift the twos-part left by 1 on each loop. This is the
+        ;; same as, but faster than, dividing it by 2.
+        (do* ((u (floor (log (/ (1- limit) threes-part) 2)) (1- u))
+              (twos-part (expt 2 u) (ash twos-part -1))
+              (candidate #1=(1+ (* twos-part threes-part)) #1#))
+             ;; This limit should never be reached. It is here as a guard against an
+             ;; infinite loop in the case that the logic of the function
+             ;; is unsound or there is some other error.
+             ((zerop u))
+          ;; If this candidate is smaller than the current big-type-1, stop the inner loop. 
+          (when (< candidate big-type-1)
+            (return-from inner-loop))
+          ;; If this candidate is prime, set it as the new big-type-1 and exit the inner loop.
+          (when (primep candidate)
+            (setf big-type-1 candidate)
+            (return-from inner-loop)))))))
+
+(defparameter *upper-limit* (expt 10 34))
+
+
+(defun add-rest-type-2 (results)
+  (format *trace-output* "~&Finding larger type 2's~%")
+  (let ((lower-limit (expt 10 8)))
+    (do ((twos-part 1 (ash twos-part 1)))
+        ((> (* 3 twos-part) *upper-limit*))
+      ;; Start inner loop with a threes-part that
+      ;; is sufficiently large so that the type-2 prime
+      ;; will be greater than 10^8
+      (do* ((v (if (< twos-part lower-limit)
+                   (ceiling (log (/ (1+ lower-limit) twos-part) 3))
+                   0)
+               (1+ v))
+            (threes-part (expt 3 v) (expt 3 v))
+            (candidate #2=(1- (* twos-part threes-part))
+                       #2#))
+           ((> candidate *upper-limit*))
+        (when (primep candidate)
+          (vector-push-extend candidate results)))))
+  (assert (>= (length results) 250))
+  (sort results #'<)
+  (setf (fill-pointer results) 250)
+  (format *trace-output* "~&Finished~%")
+  results)
+
+(defun display-results (first-50-type-1 first-50-type-2 250th-type-1 250th-type-2)
+  (format t "~&~%Pierpont primes type 1:")
+  (do ((n 1 (1+ n))
+       (i 0 n))
+      ((= i 50))
+    (format t "~%#~D: ~D" n (aref first-50-type-1 i)))
+  (format t "~%.~%.~%.~%#250: ~D" 250th-type-1)
+  (format t "~&~%Pierpont primes type 2:")
+  (do ((n 1 (1+ n))
+       (i 0 n))
+      ((= i 50))
+    (format t "~%#~D: ~D" n (aref first-50-type-2 i)))
+  (format t "~%.~%.~%.~%#250: ~D~%" 250th-type-2))
+
+#|
+
+PIERPONT-PRIMES> (pierponts)
+Finding small Pierponts.
+Finding 250th type 1.
+Finding larger type 2's
+Finished
+
+Pierpont primes type 1:
+#1: 2
+#2: 3
+#3: 5
+#4: 7
+#5: 13
+#6: 17
+#7: 19
+#8: 37
+#9: 73
+#10: 97
+#11: 109
+#12: 163
+#13: 193
+#14: 257
+#15: 433
+#16: 487
+#17: 577
+#18: 769
+#19: 1153
+#20: 1297
+#21: 1459
+#22: 2593
+#23: 2917
+#24: 3457
+#25: 3889
+#26: 10369
+#27: 12289
+#28: 17497
+#29: 18433
+#30: 39367
+#31: 52489
+#32: 65537
+#33: 139969
+#34: 147457
+#35: 209953
+#36: 331777
+#37: 472393
+#38: 629857
+#39: 746497
+#40: 786433
+#41: 839809
+#42: 995329
+#43: 1179649
+#44: 1492993
+#45: 1769473
+#46: 1990657
+#47: 2654209
+#48: 5038849
+#49: 5308417
+#50: 8503057
+.
+.
+.
+#250: 62518864539857068333550694039553
+
+Pierpont primes type 2:
+#1: 2
+#2: 3
+#3: 5
+#4: 7
+#5: 11
+#6: 17
+#7: 23
+#8: 31
+#9: 47
+#10: 53
+#11: 71
+#12: 107
+#13: 127
+#14: 191
+#15: 383
+#16: 431
+#17: 647
+#18: 863
+#19: 971
+#20: 1151
+#21: 2591
+#22: 4373
+#23: 6143
+#24: 6911
+#25: 8191
+#26: 8747
+#27: 13121
+#28: 15551
+#29: 23327
+#30: 27647
+#31: 62207
+#32: 73727
+#33: 131071
+#34: 139967
+#35: 165887
+#36: 294911
+#37: 314927
+#38: 442367
+#39: 472391
+#40: 497663
+#41: 524287
+#42: 786431
+#43: 995327
+#44: 1062881
+#45: 2519423
+#46: 10616831
+#47: 17915903
+#48: 18874367
+#49: 25509167
+#50: 30233087
+.
+.
+.
+#250: 4111131172000956525894875083702271
+NIL
+
+On my initial attempt, the 250th type-2 was
+wrong because my upper cutoff for the search 
+was too low and I had not run an assertion that
+there be at least 250 elements in the corresponding
+array.
+
+There was also a bit of bad logic. I had started the
+v's at 1. They should have started at 0.
+
+It turned out that this ran MUCH quicker than expected.
+I could have saved a lot of effort by writing a less efficient
+program. (Find all 250 of both sequences separately.)
+|#
+
