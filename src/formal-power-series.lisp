@@ -1,58 +1,67 @@
-;;;; rc-001.lisp: The Power Series problem. 
-;;;; A whole file is dedicated to this 
-;;;; because it involves shadowing the 
-;;;; basic arithmetic functions.
+;;;; Formal Power Series
+
+(eval-when (:compile-toplevel
+            :load-toplevel
+            :execute)
+
+  (defpackage #:power-series
+    (:shadow (:+ :- :* :/ :expt))
+    (:use :cl :iterate :cl-ppcre :computable-reals)
+    (:import-from :ros-utils
+     :dbind
+     :mbind)
+    (:import-from :alexandria
+     :copy-array
+     :hash-table-keys
+     :hash-table-values
+     :if-let
+     :iota
+     :map-permutations
+     :positive-integer
+     :random-elt
+     :set-equal
+     :when-let)
+    (:import-from :serapeum
+     :batches
+     :deq
+     :dict
+     :enq
+     :frequencies
+     :href
+     :maphash-new
+     :parse-float
+     :qappend
+     :queue
+     :queue-empty-p
+     :toggle-pretty-print-hash-table
+     :tokens
+     :words)
+    (:import-from :series
+     :choose-if
+     :scan-range
+     :collect-nth)
+    (:import-from :uiop
+     :split-string)
+    (:import-from :prime-utils
+     :next-prime)
+    (:export
+     :fps
+     :fpsp
+     :extended-number-p
+     :+
+     :-
+     :*
+     :/
+     :expt
+     :derivative
+     :integral
+     :*sin-fps*
+     :*cos-fps*
+     :extract)))
+
 
 (in-package :power-series)
             
-#| Formal Power Series
-   
-A power series is an infinite sum of the form 
-
-a0 + a1 * x + a2 * x^2 + a3 * x^3 + ... 
-
-
-The a[i] are called the coefficients of the 
-series. Such sums can be added, multiplied 
-etc., where the new coefficients of the 
-powers of x are calculated according to the 
-usual rules.
-
-If one is not interested in evaluating such 
-a series for particular values of x, or in 
-other words, if convergence doesn't play a 
-role, then such a collection of coefficients 
-is called formal power series. It can be 
-treated like a new kind of number.
-
-Task: Implement formal power series as a 
-numeric type. Operations should at least 
-include addition, multiplication, division 
-and additionally non-numeric operations like 
-differentiation and integration (with an 
-integration constant of zero). Take care 
-that your implementation deals with the 
-potentially infinite number of coefficients.
-
-As an example, define the power series of 
-sine and cosine in terms of each other using 
- integration.
-
-Goals: Demonstrate how the language handles 
-new numeric types and delayed (or lazy) 
-evaluation. 
-           
-|#
- 
-;; The series package attempts to turn all
-;; series objects into compile-time loops.
-;; When series objects are stored in 
-;; data structures, this is not 
-;; possible. Since we are principally 
-;; interested in the laziness of series 
-;; objects, and not optimization, we shut 
-;; off the warnings.
-
 (setf *suppress-series-warnings* t)       
 
 
@@ -468,3 +477,4 @@ evaluation.
   "cos function represented as a formal
   power series")
 
+ 

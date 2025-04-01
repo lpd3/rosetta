@@ -42,54 +42,35 @@
            :segmented-sieve
            :primes-in-range))
 
-(defpackage #:ros-01
-  #+ecl (:shadowing-import-from :ros-utils
-			  :rationalize)
-  (:use :cl :iterate :cl-ppcre :computable-reals)
-  (:import-from :ros-utils
-		:printout->string
-		:broadcast-printout
-		:dbind
-		:mbind)
-  (:import-from :alexandria
-		:copy-array
-		:hash-table-keys
-		:hash-table-values
-		:if-let
-		:iota
-		:map-permutations
-                :positive-integer
-                :random-elt
-		:set-equal
-		:when-let)
-  (:import-from :serapeum
-		:batches
-		:deq
-		:dict
-		:enq
-		:frequencies
-		:href
-		:maphash-new
-		:parse-float
-		:qappend
-		:queue
-		:queue-empty-p
-		:toggle-pretty-print-hash-table
-		:tokens
-		:words)
-  (:import-from :series
-		:choose-if
-		:scan-range
-		:collect-nth)
-  (:import-from :uiop
-		:split-string)
-  (:import-from :repl-utilities
-		:trace-package)
-  (:import-from :prime-utils
-                :next-prime)
-  #+ecl(:import-from :ext
-	:long-float-positive-infinity))
+(defpackage #:rosetta-main
+  (:use :cl)
+  (:export :main))
   
+(defpackage #:hickerson
+  (:use :cl)
+  (:import-from :computable-reals
+   :*print-prec*
+                :*creal-tolerance*
+   :print-r
+                :*r
+   :/r
+                :+log2-r+
+   :expt-r
+                :truncate-r
+   :make-real))
+
+(defpackage #:pierpont-primes
+  (:use :cl)
+  (:import-from :prime-utils
+   :primep
+                :primes-in-range)
+  (:import-from :serapeum
+   :do-each
+   :take
+   :extrema)
+  (:import-from :alexandria
+   :last-elt))
+
 (defpackage #:power-series
   (:shadow "+" "-" "*" "/" "EXPT")
   (:use :cl :series)
@@ -97,18 +78,6 @@
      :dict)
   (:import-from :alexandria
      :iota))
-
-(defpackage #:pierpont-primes
-  (:use :cl)
-  (:import-from :prime-utils
-     :primep
-     :primes-in-range)
-  (:import-from :serapeum
-     :do-each
-     :take
-     :extrema)
-  (:import-from :alexandria
-     :last-elt))
 
 (in-package :ros-01)
 

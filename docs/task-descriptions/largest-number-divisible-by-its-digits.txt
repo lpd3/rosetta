@@ -1,0 +1,157 @@
+#|
+
+Largest Number Divisible By Its Digits
+
+
+Find the largest base 10 integer whose digits are all different,   and   is evenly divisible by each
+ of its individual digits.
+
+Task
+
+These numbers are also known as   Lynch-Bell numbers, numbers n such that the (base ten) digits are 
+all different (and do not include zero) and n is divisible by each of its individual digits.
+
+Example
+
+135 is evenly divisible by 1, 3, and  5.
+
+Note that the digit zero (0) can not be in the number as integer division by zero is undefined.
+
+The digits must all be unique so a base ten number will have at most 9 digits.
+
+Feel free to use analytics and clever algorithms to reduce the search space your example needs
+to visit, but it must do an actual search. (Don't just feed it the answer and verify it is
+correct.)
+
+Stretch goal
+Do the same thing for hexadecimal.
+
+|#
+
+;; Regarding the solution space:
+
+;; 1. None of these numbers can have more than 10 digits, since that would mean 
+;; repeating a digit.
+
+;; 2. None of them can have 10 digits, since 0 is not permitted.
+
+;; 3. None can have 9 digits, because we must use both 2 and 5. Any 
+;;    number that has both 2 and 5 as factors must end in 0, and 
+;;    0 is not a permitted digit.
+
+;; 4. If the number has 8 digits, 5 must be omitted. This is because, with
+;;    eight digits, we must have at least three even numbers. If any even
+;;    number is a factor and 5 is a factor, the number will end in 0, which 
+;;    is not permitted.
+
+;; 5. That 8 digit number must contain one of each of 1, 2, 3, 4, 6, 7, 8, 9.
+;;    The sum of these numbers is 40. But a number is divisible by 9 only if 
+;;    the sum of its digits is divisible by 9. And 40 is not divisible by 9. 
+;;    so there are no 8-digit numbers in this set, either.
+
+;; 6. 7-digit numbers. Again, 5 must not be present. That leaves us with
+;;    one other digit to omit.
+;;    Assume that we do not omit 9. Then the sum of digits must be divisible by
+;;    9. The sum of digits 1-4 and 6-9 = 40. For the digit sum to be divisible by 9,
+;;    we must omit 4 (36 is the digit sum in that case). No other choice. Now, assume
+;;    we choose to omit 9. The divisibilty rules say that if we subtract the number of
+;;    digits 2, 5, and 8 from the number of digits 1, 4, and 7, and the result is divisible
+;;    by 3, then the number is divisible by 3. We have 2 and 8, which is 2. We have
+;;    1, 4 and 7. That is 3. 3-2 = 1, which is not divisible by 3.
+;;    Thus, a 7 digit number must lack 0, 4, 5 and contain all other digits.
+
+;; Divisible by 9: covers 1 and 3
+;; Divisible by 8: covers 2 (and 4). 6 now covered
+;; Divisible by 7
+;; 6 is covered
+;; 5 is excluded
+;; 4 is excluded
+;; 3, 2, 1 are covered
+
+;; The number must be divisible by 504.
+
+;; What about base 16?
+;; Using similar logic,
+
+;; 1. The largest divigible in base 16 cannot have 16 digits because 0 is forbidden.
+;; 2. If 8 is present with any other even number, the result will end in 0, which is
+;;    is forbidden. Thus, it cannot have 8, and it cannot have 15 digits.
+;; 3. Here are the divisibility rules for hex
+;;    1: all numbers
+;;    2: last digit is 0, 2, 4, 6, 8, A, C, E
+;;    3: sum of digits is divisible by 3
+;;    4: last digit is 0, 4, 8, C
+;;    5: sum of digits is divisible by 5
+;;    6: divisible by 2 and 3
+;;    7: ?
+;;    8: last digit is 0 or 8
+;;    9: ?
+;;    A: divisible by 2 and 5
+;;    B: ?
+;;    C: Divisible by 3 and 4
+;;    D: ?
+;;    E: Divisible by 2 and 7
+;;    F: Sum of digits divisible by F
+
+;; Since, of the 6 remaining even numbers, we may have at most 3 appear
+;; in the number, we now know that the number can have no more than 11
+;; digits. Furthermore, if it has 11 digits, 4 and C must be excluded.
+;; This leaves us with one more even digit to exclude. This means all odd
+;; digits must be included.
+;; The number must be divisible by
+
+;; 4. If we make a prime factorization of the product of the
+;;    digits, and the power of 2 is 4 or greater,
+;;    the number will end in 0. We have already excluded 0 and 8.
+;;    This leaves us with 2, 4, 6, A, C, E
+;;    Here are the permissable combinations of even
+;;    digits
+;;    2, 4
+;;    2, 6, A
+;;    2, 6, E
+;;    2, A, E
+;;    4, A
+;;    4, E
+;;    6, A, E
+;;    6, C
+;;    6, E
+;;    A, C
+;;    A, E
+;;    C, E
+
+;; Now, the digit sum must be divisible by F = 15.
+;; Given 12 digits, the digit sum is 96. We must exclude
+;; 6 to arrive at an 11 digit number whose digit sum is
+;; divisible by F. So our 11-digit number must not have
+;; 0, 4, 6, 8, or C among its digits.
+
+;; For now, we can assume that the largest divigible in base 16
+;; will
+;; be 11 digits long
+;; contain all digits except 0, 4, 6, 8 and C.
+;; We can narrow the search space by remembering that the
+;; It will be divisible by F=15 (covering 1, 3, 5)
+;; It will be divisible by E=14 (covering 2, 7), now A is covered
+;; It will be divisible by D=13
+;; C is excluded
+;; It will be divisible by B=11
+;; A is covered
+;; Since it must be divisible by 9, and extra 3 factor is required
+;; 8 is forbidden
+;; 7 is covered
+;; 6 is excluded
+;; 5 is covered
+;; 4 is excluded
+;; 3, 2, 1 are covered.
+
+;; Our number must be divisible by 90090.
+
+#|
+DIVIGIBLES> (divigibles-main)
+
+"Largest number divisible by all its digits in base 10:" 
+9867312
+"Largest number divisible by all its digits in base 16:" 
+FEDB5A39712 = 17513629062930
+NIL
+|#

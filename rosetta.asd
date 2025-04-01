@@ -14,13 +14,14 @@
                (:file "src/ros-conditions" :depends-on ("src/packages"))
                (:file "src/utilities" :depends-on ("src/ros-conditions"))
                (:file "src/prime-utils" :depends-on ("src/ros-conditions"))
-	       (:file "src/rc-001" :depends-on ("src/packages"))
+               (:file "src/main.lisp" :depends-on ("src/packages"))
                (:file "src/rc-002" :depends-on ("src/packages"))
                (:file "src/rc-003" :depends-on ("src/packages"))
                (:file "src/rc-004" :depends-on ("src/packages"))
                (:file "src/rc-005" :depends-on ("src/packages"))
                (:file "src/rc-006" :depends-on ("src/prime-utils"))
-               (:file "src/pierpoint-primes" :depends-on ("src/prime-utils")))
+               (:file "src/hickerson-series-of-almost-integers" :depends-on ("src/packages"))
+               (:file "src/pierpont-primes" :depends-on ("src/prime-utils")))
   :in-order-to ((test-op (test-op "rosetta/tests"))))
 
 (defsystem "rosetta/tests"

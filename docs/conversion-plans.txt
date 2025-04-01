@@ -1,0 +1,10 @@
+Conversion to a proper project
+
+1. Extract all tasks to separate files
+2. Research project structure: posible to load on an as needed basis?
+3. Move project statements to a directory
+4. Run programs and store output into a directory
+5. Write a gateway main program, which allows for choosing a task,
+   along with its statement, optional. Make sure it can load new projects.
+
+All dependencies should be loaded at package loading.
